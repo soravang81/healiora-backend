@@ -11,7 +11,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 from app.core.config import settings
 from app.db.session import Base
 from app.db.models import (
-    user_model
+    user_model,
+    medical_records,
 ) # Import all models to ensure they are registered with SQLAlchemy
 
 # Alembic Config object
