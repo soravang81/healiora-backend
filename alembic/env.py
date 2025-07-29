@@ -24,11 +24,11 @@ config = context.config
 # Build database URL with proper encoding
 def build_database_url():
     # Get individual components from environment or use defaults
-    db_user = os.getenv("DB_USER", "postgres")
-    db_password = os.getenv("DB_PASSWORD", "Sorav@69")  # Your actual password
-    db_host = os.getenv("DB_HOST", "db.xvlnwnapmrzmxupvbqon.supabase.co")
-    db_port = os.getenv("DB_PORT", "5432")
-    db_name = os.getenv("DB_NAME", "postgres")
+    db_user = os.getenv("DB_USER")
+    db_password = os.getenv("DB_PASSWORD")
+    db_host = os.getenv("DB_HOST")
+    db_port = os.getenv("DB_PORT")
+    db_name = os.getenv("DB_NAME")
     
     # URL encode the password to handle special characters
     encoded_password = quote_plus(db_password)
