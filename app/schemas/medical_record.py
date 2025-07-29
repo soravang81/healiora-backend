@@ -25,7 +25,7 @@ class MedicalRecordUpdate(MedicalRecordBase):
 
 class MedicalRecordOut(MedicalRecordBase):
     id: int
-    user_id: int
+    patient_id: int 
 
     class Config:
         from_attributes = True

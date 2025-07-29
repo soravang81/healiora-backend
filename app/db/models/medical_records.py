@@ -7,7 +7,8 @@ class MedicalRecord(Base):
     __tablename__ = "medical_records"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
+
 
     date_of_birth = Column(Date, nullable=False)
     blood_group = Column(String(3), nullable=True)  # e.g., A+, O-, etc.
@@ -22,4 +23,5 @@ class MedicalRecord(Base):
     emergency_contact_number = Column(String(20), nullable=True)
 
     # Optional: create relationship to User model
-    user = relationship("User", back_populates="medical_record")
+    patient = relationship("Patient", back_populates="medical_record")
+
