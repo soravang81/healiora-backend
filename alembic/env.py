@@ -1,53 +1,35 @@
+import sys
+import os
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
-import os
-import sys
-from pathlib import Path
-from urllib.parse import quote_plus
 
-# Add the project root to Python path
-project_root = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(project_root))
+# Add your app to sys.path so Alembic can find modules
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-# Import your models and database config
-from db import Base
-import models  # This imports your User model
+# Import settings and models
+from app.core.config import settings
+from app.db.session import Base
+from app.db.models import user_model, medical_records
 
-# Load environment variables
-from dotenv import load_dotenv
-load_dotenv()
-
-# This is the Alembic Config object
+# Alembic Config object
 config = context.config
 
-# Build database URL with proper encoding
-def build_database_url():
-    # Get individual components from environment or use defaults
-    db_user = os.getenv("DB_USER")
-    db_password = os.getenv("DB_PASSWORD")
-    db_host = os.getenv("DB_HOST")
-    db_port = os.getenv("DB_PORT")
-    db_name = os.getenv("DB_NAME")
-    
-    # URL encode the password to handle special characters
-    encoded_password = quote_plus(db_password)
-    
-    return f"postgresql+psycopg2://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
-
-# Set the database URL
-database_url = os.getenv("DATABASE_URL") or build_database_url()
-config.set_main_option("sqlalchemy.url", database_url)
-
-# Interpret the config file for Python logging
+# Setup Python logging based on .ini config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Set target metadata for autogenerate support
+# Provide metadata for Alembic's 'autogenerate' support
 target_metadata = Base.metadata
 
-def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode."""
+# Set database URL from FastAPI settings
+def get_url():
+    return settings.DATABASE_URL
+
+config.set_main_option("sqlalchemy.url", get_url())
+
+def run_migrations_offline():
+    """Run migrations without connecting to the database (e.g., for generating SQL files)."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -59,9 +41,8 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
-def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
-    
+def run_migrations_online():
+    """Run migrations with a database connection."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section),
         prefix="sqlalchemy.",
@@ -70,8 +51,8 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, 
-            target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
         )
 
         with context.begin_transaction():
