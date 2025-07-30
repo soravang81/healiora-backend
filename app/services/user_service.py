@@ -20,10 +20,11 @@ def create_user(db: Session, user: UserCreate):
         new_user = User(
             email=user.email,
             username=user.username,
+            role=user.role if user.role else "patient",
             phone_number=user.phone_number,
             age=user.age,
             password=hashed_password,
-            is_active=True  # Optional: set default activation
+            is_active=True
         )
 
         db.add(new_user)

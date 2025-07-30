@@ -20,7 +20,7 @@ class UserUpdate(BaseModel):
 
 class User(UserBase):
     id: int
-    role: str               # ✅ Add this to reflect the DB model
+    role: str = "admin" | "doctor" | "patient" | "hospital" 
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -34,4 +34,4 @@ class UserLogin(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str = "bearer"  # Optional default
+    token_type: str = "bearer"
