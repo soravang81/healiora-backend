@@ -4,7 +4,7 @@ from app.db.session import get_db
 from app.schemas.medical_record import MedicalRecordCreate, MedicalRecordUpdate, MedicalRecordOut
 from app.services import medical_record
 from app.middleware.auth import get_current_user
-from app.schemas.user_schema import User
+from app.db.models.credential import Credential as User  # Assuming Credential is used for user authentication
 
 router = APIRouter(
     prefix="/medical-records",

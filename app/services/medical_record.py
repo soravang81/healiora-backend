@@ -1,40 +1,54 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.db.models.medical_records import MedicalRecord
+from app.db.models.patient import Patient
+from app.db.models.credential import Credential
 from app.schemas.medical_record import MedicalRecordCreate, MedicalRecordUpdate
 
-def create_medical_record(db: Session, user_id: int, record_data: MedicalRecordCreate):
-    # Check if user already has a medical record
-    existing_record = db.query(MedicalRecord).filter(MedicalRecord.user_id == user_id).first()
-    if existing_record:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Medical record already exists for this user"
-        )
-    
-    new_record = MedicalRecord(user_id=user_id, **record_data.dict())
-    db.add(new_record)
-    db.commit()
-    db.refresh(new_record)
-    return new_record
+def create_patient_medical_record(db: Session, credential_id: int, record_data: MedicalRecordCreate):
+    # Ensure the user is a patient
+    credential = db.query(Credential).filter(Credential.id == credential_id).first()
+    if not credential:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    if credential.role != "patient":
+        raise HTTPException(status_code=403, detail="Only patients can have medical records")
 
-def get_medical_record(db: Session, user_id: int):
-    record = db.query(MedicalRecord).filter(MedicalRecord.user_id == user_id).first()
-    if not record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Medical record not found"
-        )
+    # Find or create Patient instance linked to this credential
+    patient = db.query(Patient).filter(Patient.credential_id == credential_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient profile not found")
+
+    # Prevent duplicate records
+    existing = db.query(MedicalRecord).filter(MedicalRecord.patient_id == patient.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Medical record already exists")
+
+    # Create medical record
+    record = MedicalRecord(patient_id=patient.id, **record_data.dict())
+    db.add(record)
+    db.commit()
+    db.refresh(record)
     return record
 
-def update_medical_record(db: Session, user_id: int, update_data: MedicalRecordUpdate):
-    record = db.query(MedicalRecord).filter(MedicalRecord.user_id == user_id).first()
-    if not record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Medical record not found"
-        )
+def get_medical_record(db: Session, credential_id: int):
+    patient = db.query(Patient).filter(Patient.credential_id == credential_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
     
+    record = db.query(MedicalRecord).filter(MedicalRecord.patient_id == patient.id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Medical record not found")
+    return record
+
+def update_medical_record(db: Session, credential_id: int, update_data: MedicalRecordUpdate):
+    patient = db.query(Patient).filter(Patient.credential_id == credential_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    record = db.query(MedicalRecord).filter(MedicalRecord.patient_id == patient.id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Medical record not found")
+
     for key, value in update_data.dict(exclude_unset=True).items():
         setattr(record, key, value)
 
@@ -42,14 +56,15 @@ def update_medical_record(db: Session, user_id: int, update_data: MedicalRecordU
     db.refresh(record)
     return record
 
-def delete_medical_record(db: Session, user_id: int):
-    record = db.query(MedicalRecord).filter(MedicalRecord.user_id == user_id).first()
+def delete_medical_record(db: Session, credential_id: int):
+    patient = db.query(Patient).filter(Patient.credential_id == credential_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    record = db.query(MedicalRecord).filter(MedicalRecord.patient_id == patient.id).first()
     if not record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Medical record not found"
-        )
-    
+        raise HTTPException(status_code=404, detail="Medical record not found")
+
     db.delete(record)
     db.commit()
     return {"detail": "Medical record deleted successfully"}
