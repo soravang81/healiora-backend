@@ -19,5 +19,4 @@ class Hospital(Base):
     email = Column(String, unique=True, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    user = relationship("Credential", back_populates="hospital")
-
+    credential = relationship("Credential", back_populates="hospital") 
