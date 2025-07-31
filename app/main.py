@@ -5,8 +5,17 @@ from app.api.v1 import (
     hospital,
     patient  # ✅ import the patient router
 )
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Healiora API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or specify your frontend URL like ["http://localhost:3000"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Routers
 app.include_router(credential.router, prefix="/api/v1/users", tags=["Users"])

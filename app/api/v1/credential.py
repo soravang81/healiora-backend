@@ -36,6 +36,19 @@ def login_user(data: CredentialLogin, db: Session = Depends(get_db)):
 
     return {"access_token": token, "token_type": "bearer"}
 
+@router.post("/login-admin", response_model=Token)
+def login_admin(data: CredentialLogin, db: Session = Depends(get_db)):
+    user = credential_service.get_user_by_email(db, data.email)
+
+    if not user or not verify_password(data.password, user.password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin accounts are allowed to log in")
+
+    token = create_access_token(user_id=user.id)
+    return {"access_token": token, "token_type": "bearer"}
+
 # ✅ Public: Register new user credential (default role = "patient")
 @router.post("/register", response_model=CredentialOut, status_code=status.HTTP_201_CREATED)
 def register_user(data: PatientRegisterSchema, db: Session = Depends(get_db)):

@@ -10,6 +10,7 @@ class HospitalCreate(BaseModel):
     name: str
     address: str
     phone: str
+    admin_name: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
@@ -27,6 +28,7 @@ class HospitalOut(BaseModel):
     phone: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    admin_name: Optional[str] = None
     created_at: datetime
 
     class Config:
