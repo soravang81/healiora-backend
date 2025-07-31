@@ -14,6 +14,7 @@ class Hospital(Base):
     latitude = Column(Float)
     longitude = Column(Float)
     pending = Column(Boolean, default=True)
+    admin_name = Column(String, nullable=True)
     approved = Column(Boolean, default=False)
     phone = Column(String, unique=True)
     email = Column(String, unique=True, nullable=True)

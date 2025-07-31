@@ -1,14 +1,23 @@
 from fastapi import FastAPI
-import uvicorn
-import socketio
 from app.api.v1 import (
     credential,
     medical_record,
     hospital,
-    patient 
+    patient  # ✅ import the patient router
 )
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+import socketio
 
 app = FastAPI(title="Healiora API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or specify your frontend URL like ["http://localhost:3000"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(credential.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(medical_record.router, prefix="/api/v1/medical-records", tags=["Medical Records"]) 

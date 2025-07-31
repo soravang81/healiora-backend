@@ -30,6 +30,7 @@ def create_hospital_with_credentials(db: Session, hospital_data: HospitalCreate)
          email=hospital_data.email,
         name=hospital_data.name,
         address=hospital_data.address,
+        admin_name=hospital_data.admin_name,
         phone=hospital_data.phone,
         latitude=hospital_data.latitude,
         longitude=hospital_data.longitude,
@@ -44,15 +45,21 @@ def hospital_login(email: str, password: str, db: Session):
     user = db.query(Credential).filter(Credential.email == email).first()
 
     if not user:
+        print("User not found")
         raise HTTPException(status_code=400, detail="Invalid email or password")
+    
     if not verify_password(password, user.password):
+        print("Password verification failed")
         raise HTTPException(status_code=400, detail="Invalid email or password")
+    
+    print(f"User role: {user.role}")  # ✅ This will log the role to the console
+    
     if user.role != "hospital":
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail="Only hospital accounts are allowed to log in")
 
-    token = create_access_token(user_id=user.id)
+    return create_access_token(user_id=user.id)
 
-    return token
+
 
 
 def get_all_hospitals(db: Session) -> list[Hospital]:
