@@ -21,4 +21,6 @@ class Hospital(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("Credential", back_populates="hospital")
+    doctors = relationship("Doctor", back_populates="hospital")
+    ambulances = relationship("Ambulance", back_populates="hospital")
 
