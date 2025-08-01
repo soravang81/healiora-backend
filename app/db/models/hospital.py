@@ -20,4 +20,7 @@ class Hospital(Base):
     email = Column(String, unique=True, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    credential = relationship("Credential", back_populates="hospital") 
+    user = relationship("Credential", back_populates="hospital")
+    doctors = relationship("Doctor", back_populates="hospital")
+    ambulances = relationship("Ambulance", back_populates="hospital")
+

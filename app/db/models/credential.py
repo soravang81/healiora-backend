@@ -18,5 +18,6 @@ class Credential(Base):
 
     # One-to-one relationships to actual entities (optional)
     patient = relationship("Patient", back_populates="credential", uselist=False)
-    hospital = relationship("Hospital", back_populates="credential", uselist=False)
-    # doctor = relationship("Doctor", back_populates="credential", uselist=False)
+    hospital = relationship("Hospital", back_populates="user", uselist=False)
+    doctor = relationship("Doctor", back_populates="credential", uselist=False)
+    ambulance = relationship("Ambulance", back_populates="credential", uselist=False)

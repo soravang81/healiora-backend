@@ -3,7 +3,10 @@ from app.api.v1 import (
     credential,
     medical_record,
     hospital,
-    patient  # ✅ import the patient router
+    patient,
+    doctor,
+    ambulance
+      # ✅ import the patient router
 )
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -19,10 +22,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Routers
 app.include_router(credential.router, prefix="/api/v1/users", tags=["Users"])
-app.include_router(medical_record.router, prefix="/api/v1/medical-record", tags=["Medical Records"]) 
-app.include_router(hospital.router, prefix="/api/v1/hospital", tags=["Hospitals"])
-app.include_router(patient.router, prefix="/api/v1/patient", tags=["Patients"])
+app.include_router(medical_record.router, prefix="/api/v1/medical-records", tags=["Medical Records"]) 
+app.include_router(hospital.router, prefix="/api/v1/hospitals", tags=["Hospitals"])
+app.include_router(patient.router, prefix="/api/v1/patients", tags=["Patients"]) 
+app.include_router(doctor.router, prefix="/api/v1/doctors", tags=["Doctors"])
+app.include_router(ambulance.router, prefix="/api/v1/ambulances", tags=["Ambulances"])
+ # ✅ added patient router
 
 @app.get("/")
 def read_root():
