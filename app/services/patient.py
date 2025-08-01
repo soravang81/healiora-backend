@@ -51,3 +51,20 @@ def update_patient_details(
     db.commit()
     db.refresh(patient)
     return patient
+
+def send_sos(
+    db: Session, credential_id: int, data: PatientCreate
+) -> Patient:
+    # Ensure only one patient profile per credential
+    existing = db.query(Patient).filter(Patient.credential_id == credential_id).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Patient profile already exists.",
+        )
+
+    patient = Patient(**data.dict(), credential_id=credential_id)
+    db.add(patient)
+    db.commit() 
+    db.refresh(patient)
+    return patient

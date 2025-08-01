@@ -9,18 +9,26 @@ from app.schemas.patient import PatientCreate, PatientOut
 from app.utils.deps import require_admin
 
 router = APIRouter(
-    prefix="/patients",
+    # prefix="/patients",
     tags=["Patient"]
 )
 
 # ✅ Create patient profile (only once per user)
-@router.post("/", response_model=PatientOut, status_code=status.HTTP_201_CREATED)
+@router.post("/create", response_model=PatientOut, status_code=status.HTTP_201_CREATED)
 def create_patient_profile(
     data: PatientCreate,
     db: Session = Depends(get_db),
     current_user: Credential = Depends(get_current_user)
 ):
-    return patient_service.create_patient_details(db, current_user.id, data)
+    try:
+        patient = patient_service.create_patient_details(db, current_user.id, data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "status": "success",
+        "message": "Patient profile created successfully",
+        "patient": patient
+    }
 
 # ✅ Get your own patient profile
 @router.get("/me", response_model=PatientOut)

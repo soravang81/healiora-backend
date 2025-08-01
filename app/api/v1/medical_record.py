@@ -7,11 +7,11 @@ from app.middleware.auth import get_current_user
 from app.db.models.credential import Credential as User  # Assuming Credential is used for user authentication
 
 router = APIRouter(
-    prefix="/medical-records",
+    # prefix="/medical-records",
     tags=["Medical Records"]
 )
 
-@router.post("/", response_model=MedicalRecordOut, status_code=status.HTTP_201_CREATED)
+@router.post("/create", response_model=MedicalRecordOut, status_code=status.HTTP_201_CREATED)
 def create_medical_record(
     data: MedicalRecordCreate,
     db: Session = Depends(get_db),
@@ -19,14 +19,14 @@ def create_medical_record(
 ):
     return medical_record.create_medical_record(db, user_id=current_user.id, record_data=data)
 
-@router.get("/", response_model=MedicalRecordOut)
+@router.get("/me", response_model=MedicalRecordOut)
 def get_medical_record(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     return medical_record.get_medical_record(db, user_id=current_user.id)
 
-@router.put("/", response_model=MedicalRecordOut)
+@router.put("/update", response_model=MedicalRecordOut)
 def update_medical_record(
     data: MedicalRecordUpdate,
     db: Session = Depends(get_db),
@@ -34,7 +34,7 @@ def update_medical_record(
 ):
     return medical_record.update_medical_record(db, user_id=current_user.id, update_data=data)
 
-@router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/delete", status_code=status.HTTP_204_NO_CONTENT)
 def delete_medical_record(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

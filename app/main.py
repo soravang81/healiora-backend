@@ -20,35 +20,36 @@ app.add_middleware(
 )
 
 app.include_router(credential.router, prefix="/api/v1/users", tags=["Users"])
-app.include_router(medical_record.router, prefix="/api/v1/medical-records", tags=["Medical Records"]) 
-app.include_router(hospital.router, prefix="/api/v1/hospitals", tags=["Hospitals"])
-app.include_router(patient.router, prefix="/api/v1/patients", tags=["Patients"])
+app.include_router(medical_record.router, prefix="/api/v1/medical-record", tags=["Medical Records"]) 
+app.include_router(hospital.router, prefix="/api/v1/hospital", tags=["Hospitals"])
+app.include_router(patient.router, prefix="/api/v1/patient", tags=["Patients"])
 
 @app.get("/")
 def read_root():
     return {"message": "Healiora API is running!"}
 
-# Create Socket.IO server
+# Socket.IO Setup
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins="*"
+    cors_allowed_origins=["http://localhost:3000"],  # Match your frontend URL
+    logger=True,
+    engineio_logger=True
 )
 
-# Create Socket.IO ASGI app
-socket_app = socketio.ASGIApp(sio)
-
-# Mount the Socket.IO app
+# Wrap with ASGI application
+socket_app = socketio.ASGIApp(
+    socketio_server=sio,
+    other_asgi_app=app
+)
 app.mount("/socket.io", socket_app)
 
-# Your FastAPI routes
-@app.get("/")
-async def root():
-    return {"message": "FastAPI + Socket.IO"}
-
-# Socket.IO events
+# Socket.IO Events
 @sio.event
-async def connect(sid, environ):
+async def connect(sid, environ, auth):
     print(f"Client connected: {sid}")
+    # You can access query parameters from environ
+    query_string = environ.get('QUERY_STRING', '')
+    print(f"Query params: {query_string}")
 
 @sio.event
 async def disconnect(sid):
@@ -56,13 +57,13 @@ async def disconnect(sid):
 
 @sio.event
 async def chat_message(sid, data):
-    # Broadcast to all clients
-    await sio.emit('chat_message', data)
-    print("chat_msg"+data)
+    print(f"Message from {sid}: {data}")
+    await sio.emit('chat_message', data, room=sid)
 
-@sio.on("message")
-async def handleMessage(sid, data):
-    print("from msg"+data)
+@sio.on('message')
+async def handle_message(sid, data):
+    print(f"Received message: {data}")
+    await sio.emit('response', {'status': 'received'}, room=sid)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(socket_app, host="0.0.0.0", port=8000)

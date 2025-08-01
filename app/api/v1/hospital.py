@@ -19,7 +19,7 @@ from app.middleware.auth import get_current_user
 from app.utils.deps import require_admin
 
 router = APIRouter(
-    prefix="/hospitals",
+    # prefix="/hospitals",
     tags=["Hospitals"]
 )
 
@@ -59,7 +59,7 @@ def get_my_hospital(
 
 
 # ✅ Public: Get all hospitals
-@router.get("/", response_model=list[HospitalOut])
+@router.get("/all", response_model=list[HospitalOut])
 def fetch_all_hospitals(db: Session = Depends(get_db)):
     return get_all_hospitals(db)
 

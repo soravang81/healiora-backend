@@ -32,7 +32,6 @@ def create_credential(db: Session, data: PatientRegisterSchema) -> Credential:
         emergency_contact=data.emergency_contact
     )
     db.add(patient)
-
     db.commit()
     db.refresh(new_cred)
     return new_cred

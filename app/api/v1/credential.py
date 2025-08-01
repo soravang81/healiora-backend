@@ -16,7 +16,7 @@ from app.schemas.patient import PatientRegisterSchema
 
 
 router = APIRouter(
-    prefix="/credentials",
+    # prefix="/credentials",
     tags=["Credential"]
 )
 
