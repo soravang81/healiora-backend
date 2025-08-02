@@ -6,19 +6,19 @@ from pydantic.networks import EmailStr
 class PatientBase(BaseModel):
     full_name: Optional[str] = None
     email: EmailStr
-    gender: Optional[str] = None
-    phone_number: Optional[str] = None
     password: str
-    age: Optional[int] = None
-    emergency_contact: Optional[str] = None
 
 class PatientCreate(PatientBase):
-    pass  # No extra fields; full_name, username, age, emergency contact
+    email: EmailStr
+    password: str
+    full_name: Optional[str] = None
 
 class PatientUpdate(BaseModel):
     full_name: Optional[str] = None
     age: Optional[int] = None
     emergency_contact: Optional[str] = None
+    gender: Optional[str] = None
+    phone_number: Optional[str] = None
 
 class PatientLogin(BaseModel):
     email: EmailStr

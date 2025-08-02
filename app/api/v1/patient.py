@@ -9,9 +9,11 @@ from app.schemas.patient import PatientCreate, PatientOut
 from app.utils.deps import require_admin
 from app.schemas.token import Token
 from app.schemas.credential import CredentialLogin
-from app.schemas.patient import PatientLogin
+from app.schemas.patient import PatientLogin, PatientUpdate
 from app.core.security import verify_password
 from app.utils.jwt import create_access_token
+from app.middleware.auth import get_current_user as get_current_user_id
+
 
 
 
@@ -42,6 +44,17 @@ def login_doctor(data: PatientLogin, db: Session = Depends(get_db)):
     token = create_access_token(user_id=user.id)
 
     return {"access_token": token, "token_type": "bearer"}
+
+@router.put("/update", response_model=PatientOut)
+def update_own_patient_profile(
+    data: PatientUpdate,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id)
+):
+    patient = patient_service.update_patient_by_user_id(db, user_id, data)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return patient
 
 
 

@@ -31,11 +31,7 @@ def create_patient_details(
     patient = Patient(
         credential_id=credential.id,
         full_name=data.full_name,
-        gender=data.gender,
         email=data.email,
-        age=data.age,
-        emergency_contact=data.emergency_contact,
-        phone_number=data.phone_number
     )
     db.add(patient)
     db.commit()
@@ -55,22 +51,19 @@ def get_patient_by_credential_id(
     return patient
 
 
-def update_patient_details(
-    db: Session, credential_id: int, updates: PatientUpdate
-) -> Patient:
-    patient = db.query(Patient).filter(Patient.credential_id == credential_id).first()
-    if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found.",
-        )
 
-    for field, value in updates.dict(exclude_unset=True).items():
-        setattr(patient, field, value)
+def update_patient_by_user_id(db: Session, user_id: int, data: PatientUpdate):
+    patient = db.query(Patient).filter(Patient.credential_id == user_id).first()
+    if not patient:
+        return None
+
+    for key, value in data.dict(exclude_unset=True).items():
+        setattr(patient, key, value)
 
     db.commit()
     db.refresh(patient)
     return patient
+
 
 def send_sos(
     db: Session, credential_id: int, data: PatientCreate
