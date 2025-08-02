@@ -17,5 +17,3 @@ async def disconnect(sid):
 async def my_event(sid, data):
     print(f"📦 Received data from {sid}: {data}")
     await sio.emit("response", {"data": "Message received!"}, to=sid)
-
-socket_app = socketio.ASGIApp(sio)
