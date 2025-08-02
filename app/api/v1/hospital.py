@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+import time
 
 from app.schemas.token import Token
 from app.schemas.hospital import HospitalCreate, HospitalOut, HospitalUpdate
@@ -23,6 +24,24 @@ router = APIRouter(
     tags=["Hospitals"]
 )
 
+# --- Performance Note ---
+# FastAPI's Depends is NOT the main cause of slow API responses (700ms+).
+# The main causes are usually:
+#   - Slow database connection setup (ensure connection pooling is enabled)
+#   - Slow database queries (missing indexes, inefficient queries)
+#   - Heavy synchronous code blocking the event loop
+#   - Cold start of the server or DB
+# To profile, we add timing logs below.
+
+def timed_endpoint_sync(func):
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        duration = (time.perf_counter() - start) * 1000
+        print(f"⏱️ {func.__name__} took {duration:.2f}ms")
+        return result
+    return wrapper
+
 # ✅ Admin: Create hospital (credentials + details)
 @router.post("/create", response_model=HospitalOut, dependencies=[Depends(require_admin)])
 def create_hospital(
@@ -41,9 +60,9 @@ def login_hospital(payload: CredentialLogin, db: Session = Depends(get_db)):
         "token_type": "bearer"
     }
 
-
 # ✅ Hospital: Get my own hospital details
 @router.get("/me", response_model=HospitalOut)
+# @timed_endpoint_sync
 def get_my_hospital(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

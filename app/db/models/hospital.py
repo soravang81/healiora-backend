@@ -23,4 +23,5 @@ class Hospital(Base):
     user = relationship("Credential", back_populates="hospital")
     doctors = relationship("Doctor", back_populates="hospital")
     ambulances = relationship("Ambulance", back_populates="hospital")
+    socket_logs = relationship("SocketLog", back_populates="hospital")
 

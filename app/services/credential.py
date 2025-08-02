@@ -16,6 +16,7 @@ def create_credential(db: Session, data: PatientRegisterSchema) -> Credential:
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # Create credential
     new_cred = Credential(
         email=data.email,
         password=hash_password(data.password),
@@ -25,9 +26,13 @@ def create_credential(db: Session, data: PatientRegisterSchema) -> Credential:
     db.add(new_cred)
     db.flush()
 
+    # Create patient
     patient = Patient(
         credential_id=new_cred.id,
-        username=data.username,
+        full_name=data.full_name,
+        gender=data.gender,
+        phone_number=data.phone_number,
+        email=data.email,
         age=data.age,
         emergency_contact=data.emergency_contact
     )
