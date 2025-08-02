@@ -39,7 +39,7 @@ def login_doctor(data: PatientLogin, db: Session = Depends(get_db)):
     if not patient or not verify_password(data.password, patient.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = create_access_token(user_id=user.id)
+    token = create_access_token(user_id=patient.id)
 
     return {"access_token": token, "token_type": "bearer"}
 

@@ -46,7 +46,8 @@ class PatientRegisterSchema(BaseModel):
     role: str = "patient"
 
     # Patient-specific fields
-    username: str
+    full_name: str
+    gender: str
     age: int
     emergency_contact: str
 
