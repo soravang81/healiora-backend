@@ -61,4 +61,3 @@ def create_hospital_by_admin(
 
 def get_user_by_email(db: Session, email: str) -> Credential:
     return db.query(Credential).filter(Credential.email == email).first()
-

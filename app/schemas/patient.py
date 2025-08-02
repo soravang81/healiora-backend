@@ -4,31 +4,39 @@ from datetime import datetime
 from pydantic.networks import EmailStr
 
 class PatientBase(BaseModel):
-    username: str
+    full_name: Optional[str] = None
+    email: EmailStr
+    gender: Optional[str] = None
+    phone_number: Optional[str] = None
+    password: str
     age: Optional[int] = None
     emergency_contact: Optional[str] = None
 
 class PatientCreate(PatientBase):
-    pass  # No extra fields; username, age, emergency contact
+    pass  # No extra fields; full_name, username, age, emergency contact
 
 class PatientUpdate(BaseModel):
-    username: Optional[str] = None
+    full_name: Optional[str] = None
     age: Optional[int] = None
     emergency_contact: Optional[str] = None
 
-class PatientOut(PatientBase):
+class PatientLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class PatientOut(BaseModel):
     id: int
     credential_id: int
-    created_at: datetime
+    email: EmailStr
+    full_name: Optional[str] = None
+    gender: Optional[str] = None
+    phone_number: Optional[str] = None
+    age: Optional[int] = None
+    emergency_contact: Optional[str] = None
+    created_at: Optional[datetime] = None  # if in your model
 
     class Config:
         from_attributes = True
-
-class CredentialCreate(BaseModel):
-    email: EmailStr
-    password: str
-    phone_number: Optional[str] = None
-    role: str  # e.g., "patient", "admin", "hospital"
 
 
 class PatientRegisterSchema(BaseModel):
@@ -41,3 +49,4 @@ class PatientRegisterSchema(BaseModel):
     username: str
     age: int
     emergency_contact: str
+

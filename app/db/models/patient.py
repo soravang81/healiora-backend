@@ -9,7 +9,11 @@ class Patient(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     credential_id = Column(Integer, ForeignKey("credentials.id", ondelete="CASCADE"), unique=True)
-    username = Column(String, nullable=False)
+    full_name = Column(String, nullable=False)
+    gender = Column(String, nullable=False)
+    email = Column(String, nullable=False, unique=True)
+    phone_number = Column(String, nullable=True)
+
     age = Column(Integer, nullable=True)
     emergency_contact = Column(String, nullable=True)
 
