@@ -7,6 +7,13 @@ from app.db.models.credential import Credential
 from app.services import patient as patient_service
 from app.schemas.patient import PatientCreate, PatientOut
 from app.utils.deps import require_admin
+from app.schemas.token import Token
+from app.schemas.credential import CredentialLogin
+from app.schemas.patient import PatientLogin
+from app.core.security import verify_password
+from app.utils.jwt import create_access_token
+
+
 
 router = APIRouter(
     # prefix="/patients",
@@ -18,17 +25,25 @@ router = APIRouter(
 def create_patient_profile(
     data: PatientCreate,
     db: Session = Depends(get_db),
-    current_user: Credential = Depends(get_current_user)
 ):
     try:
-        patient = patient_service.create_patient_details(db, current_user.id, data)
+        patient = patient_service.create_patient_details(db, data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return {
-        "status": "success",
-        "message": "Patient profile created successfully",
-        "patient": patient
-    }
+    return patient  # ✅ Matches PatientOut
+
+
+@router.post("/login-doctor", response_model=Token)
+def login_doctor(data: PatientLogin, db: Session = Depends(get_db)):
+    patient = patient_service.get_patient_by_email(db, data.email)
+    if not patient or not verify_password(data.password, patient.password):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    token = create_access_token(user_id=user.id)
+
+    return {"access_token": token, "token_type": "bearer"}
+
+
 
 # ✅ Get your own patient profile
 @router.get("/me", response_model=PatientOut)

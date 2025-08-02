@@ -2,21 +2,41 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.db.models.patient import Patient
+from app.db.models.credential import Credential
 from app.schemas.patient import PatientCreate, PatientUpdate
+from app.core.security import hash_password
 
 
 def create_patient_details(
-    db: Session, credential_id: int, data: PatientCreate
+    db: Session, data: PatientCreate
 ) -> Patient:
-    # Ensure only one patient profile per credential
-    existing = db.query(Patient).filter(Patient.credential_id == credential_id).first()
-    if existing:
+    # Check if email already exists in credentials
+    existing_credential = db.query(Credential).filter(Credential.email == data.email).first()
+    if existing_credential:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Patient profile already exists.",
+            detail="Email already registered.",
         )
 
-    patient = Patient(**data.dict(), credential_id=credential_id)
+    # Create credential first
+    credential = Credential(
+        email=data.email,
+        password=hash_password(data.password),
+        role="patient",
+    )
+    db.add(credential)
+    db.flush()  # Get the credential ID without committing
+
+    # Create patient profile
+    patient = Patient(
+        credential_id=credential.id,
+        full_name=data.full_name,
+        gender=data.gender,
+        email=data.email,
+        age=data.age,
+        emergency_contact=data.emergency_contact,
+        phone_number=data.phone_number
+    )
     db.add(patient)
     db.commit()
     db.refresh(patient)
@@ -67,4 +87,15 @@ def send_sos(
     db.add(patient)
     db.commit() 
     db.refresh(patient)
+    return patient
+
+def get_patient_by_email(
+    db: Session, email: str
+) -> Patient:
+    patient = db.query(Patient).filter(Patient.email == email).first()
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient not found with the given email.",
+        )
     return patient
