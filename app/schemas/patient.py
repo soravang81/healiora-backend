@@ -27,6 +27,16 @@ class PatientUpdate(BaseModel):
     gender: Optional[str] = None
     phone_number: Optional[str] = None
 
+# New schema for complete registration with auto-login
+class PatientCompleteRegister(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    age: int
+    phone_number: str
+    emergency_contact: str
+    gender: str
+
 class PatientLogin(BaseModel):
     email: EmailStr
     password: str
@@ -45,6 +55,11 @@ class PatientOut(BaseModel):
     class Config:
         from_attributes = True
 
+# Response model for complete registration with token
+class PatientRegisterResponse(BaseModel):
+    patient: PatientOut
+    access_token: str
+    token_type: str = "bearer"
 
 class PatientRegisterSchema(BaseModel):
     email: EmailStr

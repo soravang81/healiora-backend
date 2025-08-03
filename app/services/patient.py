@@ -3,7 +3,7 @@ from fastapi import HTTPException, status
 
 from app.db.models.patient import Patient
 from app.db.models.credential import Credential
-from app.schemas.patient import PatientCreate, PatientUpdate
+from app.schemas.patient import PatientCreate, PatientUpdate, PatientCompleteRegister, PatientRegisterResponse
 from app.core.security import hash_password, verify_password
 from app.utils.jwt import create_access_token
 
@@ -149,4 +149,52 @@ def update_patient_by_credential_id(db: Session, credential_id: int, data: Patie
     db.commit()
     db.refresh(patient)
     return patient
+
+
+def create_complete_patient_with_login(
+    db: Session, data: PatientCompleteRegister
+) -> PatientRegisterResponse:
+    """
+    Create a complete patient profile with all details and return login token.
+    This is a one-step registration process that automatically logs in the patient.
+    """
+    # Check if email already exists in credentials
+    existing_credential = db.query(Credential).filter(Credential.email == data.email).first()
+    if existing_credential:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered.",
+        )
+
+    # Create credential first
+    credential = Credential(
+        email=data.email,
+        password=hash_password(data.password),
+        role="patient",
+    )
+    db.add(credential)
+    db.flush()  # Get the credential ID without committing
+
+    # Create complete patient profile with all details
+    patient = Patient(
+        credential_id=credential.id,
+        full_name=data.full_name,
+        email=data.email,
+        age=data.age,
+        phone_number=data.phone_number,
+        emergency_contact=data.emergency_contact,
+        gender=data.gender,
+    )
+    db.add(patient)
+    db.commit()
+    db.refresh(patient)
+    
+    # Generate access token for automatic login
+    token = create_access_token(user_id=credential.id, role="patient")
+    
+    return PatientRegisterResponse(
+        patient=patient,
+        access_token=token,
+        token_type="bearer"
+    )
 

@@ -5,7 +5,7 @@ from app.db.session import get_db
 from app.middleware.auth import get_current_user
 from app.db.models.credential import Credential
 from app.services import patient as patient_service
-from app.schemas.patient import PatientCreate, PatientOut, PatientUpdate, PatientInitialRegister
+from app.schemas.patient import PatientCreate, PatientOut, PatientUpdate, PatientInitialRegister, PatientCompleteRegister, PatientRegisterResponse
 from app.utils.deps import require_admin
 from app.schemas.credential import CredentialLogin
 from app.schemas.token import Token
@@ -17,6 +17,32 @@ router = APIRouter(
     # prefix="/patients",
     tags=["Patient"]
 )
+
+# ✅ Complete patient registration with automatic login
+@router.post("/register-complete", response_model=PatientRegisterResponse, status_code=status.HTTP_201_CREATED)
+def complete_patient_registration_with_login(
+    data: PatientCompleteRegister,
+    db: Session = Depends(get_db)
+):
+    """
+    Complete patient registration with all details and automatic login.
+    This endpoint creates the patient profile with all required information
+    and returns an access token for immediate login.
+    
+    Required fields:
+    - email: Patient's email address
+    - password: Patient's password
+    - full_name: Patient's full name
+    - age: Patient's age
+    - phone_number: Patient's phone number
+    - emergency_contact: Emergency contact number
+    - gender: Patient's gender
+    """
+    try:
+        result = patient_service.create_complete_patient_with_login(db, data)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ✅ Initial patient registration (step 1)
 @router.post("/register", response_model=PatientOut, status_code=status.HTTP_201_CREATED)
