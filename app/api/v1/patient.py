@@ -5,58 +5,115 @@ from app.db.session import get_db
 from app.middleware.auth import get_current_user
 from app.db.models.credential import Credential
 from app.services import patient as patient_service
-from app.schemas.patient import PatientCreate, PatientOut
+from app.schemas.patient import PatientCreate, PatientOut, PatientUpdate, PatientInitialRegister
 from app.utils.deps import require_admin
-from app.schemas.token import Token
 from app.schemas.credential import CredentialLogin
-from app.schemas.patient import PatientLogin, PatientUpdate
+from app.schemas.token import Token
 from app.core.security import verify_password
 from app.utils.jwt import create_access_token
-from app.middleware.auth import get_current_user as get_current_user_id
-
-
-
+from app.services import credential as credential_service
 
 router = APIRouter(
     # prefix="/patients",
     tags=["Patient"]
 )
 
-# ✅ Create patient profile (only once per user)
+# ✅ Initial patient registration (step 1)
+@router.post("/register", response_model=PatientOut, status_code=status.HTTP_201_CREATED)
+def initial_patient_registration(
+    data: PatientInitialRegister,
+    db: Session = Depends(get_db)
+):
+    """
+    Step 1: Initial patient registration with email, password, and full name.
+    Creates credential and basic patient profile.
+    """
+    try:
+        # Convert to PatientCreate format for existing service
+        patient_data = PatientCreate(
+            email=data.email,
+            password=data.password,
+            full_name=data.full_name
+        )
+        patient = patient_service.create_patient_details(db, patient_data)
+        
+        return patient
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ✅ Complete patient profile after registration (step 2 - no auth required)
+@router.put("/complete-profile/{patient_id}", response_model=PatientOut)
+def complete_patient_profile(
+    patient_id: int,
+    data: PatientUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Step 2: Complete patient profile with additional details.
+    This endpoint doesn't require authentication - user can complete profile immediately after registration.
+    """
+    try:
+        patient = patient_service.update_patient_by_id(db, patient_id, data)
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient profile not found")
+        
+        return patient
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ✅ Create patient profile (creates both credential and patient)
 @router.post("/create", response_model=PatientOut, status_code=status.HTTP_201_CREATED)
 def create_patient_profile(
     data: PatientCreate,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
     try:
         patient = patient_service.create_patient_details(db, data)
+        return patient
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return patient  # ✅ Matches PatientOut
 
-
-@router.post("/login-doctor", response_model=Token)
-def login_doctor(data: PatientLogin, db: Session = Depends(get_db)):
-    patient = patient_service.get_patient_by_email(db, data.email)
-    if not patient or not verify_password(data.password, patient.password):
+@router.post("/login", response_model=Token)
+def login_patient(payload: CredentialLogin, db: Session = Depends(get_db)):
+    # Step 1: Fetch credential using email
+    credential = credential_service.get_credential_by_email(db, payload.email)
+    
+    if not credential or not verify_password(payload.password, credential.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Step 2: Get patient profile using credential_id
+    patient = patient_service.get_patient_by_credential_id(db, credential.id)
+    
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient profile not found")
+    
+    # Step 3: Generate JWT token with patient role
+    token = create_access_token(user_id=credential.id, role="patient")
 
-    token = create_access_token(user_id=patient.id)
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }
 
-    return {"access_token": token, "token_type": "bearer"}
-
-@router.put("/update", response_model=PatientOut)
-def update_own_patient_profile(
+# ✅ Update patient profile with additional details (step 2 of registration) - requires auth
+@router.put("/update-profile", response_model=PatientOut)
+def update_patient_profile(
     data: PatientUpdate,
     db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user_id)
+    current_user: Credential = Depends(get_current_user)
 ):
-    patient = patient_service.update_patient_by_user_id(db, user_id, data)
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    return patient
-
-
+    """
+    Update patient profile with additional details like phone number, age, gender, emergency contact.
+    This is step 2 of the registration process.
+    """
+    try:
+        patient = patient_service.update_patient_by_credential_id(db, current_user.id, data)
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient profile not found")
+        
+        return patient
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ✅ Get your own patient profile
 @router.get("/me", response_model=PatientOut)

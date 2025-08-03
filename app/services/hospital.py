@@ -6,6 +6,7 @@ from app.schemas.hospital import HospitalCreate, HospitalUpdate
 from app.core.security import hash_password
 from app.utils.jwt import create_access_token
 from app.core.security import verify_password
+from fastapi import status
 
 
 def create_hospital_with_credentials(db: Session, hospital_data: HospitalCreate) -> Hospital:
@@ -41,18 +42,22 @@ def create_hospital_with_credentials(db: Session, hospital_data: HospitalCreate)
 
     return hospital
 
-def hospital_login(email: str, password: str, db: Session):
+def hospital_login(email: str, password: str, db: Session) -> str:
     user = db.query(Credential).filter(Credential.email == email).first()
-
-    if not user:
-        raise HTTPException(status_code=400, detail="Invalid email or password")
-    if not verify_password(password, user.password):
-        raise HTTPException(status_code=400, detail="Invalid email or password")
+    
+    if not user or not verify_password(password, user.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
+    
     if user.role != "hospital":
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    token = create_access_token(user_id=user.id)
-
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only hospital accounts can access this endpoint"
+        )
+    
+    token = create_access_token(user_id=user.id, role=user.role)
     return token
 
 

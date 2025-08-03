@@ -33,11 +33,17 @@ def create_doctor_route(
 
 @router.post("/login-doctor", response_model=Token)
 def login_doctor(data: DoctorLogin, db: Session = Depends(get_db)):
-    doctor = doctor_service.get_doctor_by_email(db, data.email)
-    if not doctor or not verify_password(data.password, doctor.password):
+    # First get the credential by email
+    credential = db.query(Credential).filter(Credential.email == data.email).first()
+    if not credential or not verify_password(data.password, credential.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Then get the doctor by credential_id
+    doctor = doctor_service.get_doctor_by_credential_id(db, credential.id)
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor profile not found")
 
-    token = create_access_token(user_id=user.id)
+    token = create_access_token(user_id=credential.id, role="doctor")
 
     return {"access_token": token, "token_type": "bearer"}
 

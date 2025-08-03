@@ -13,6 +13,13 @@ class PatientCreate(PatientBase):
     password: str
     full_name: Optional[str] = None
 
+# New schema for initial registration (step 1)
+class PatientInitialRegister(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+
+# Updated schema for additional details (step 2)
 class PatientUpdate(BaseModel):
     full_name: Optional[str] = None
     age: Optional[int] = None

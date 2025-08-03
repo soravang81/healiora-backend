@@ -84,6 +84,9 @@ def get_doctor_by_id(db: Session, doctor_id: int):
 def get_doctor_by_email(db: Session, email: str):
     return db.query(Doctor).filter(Doctor.email == email).first()
 
+def get_doctor_by_credential_id(db: Session, credential_id: int):
+    return db.query(Doctor).filter(Doctor.credential_id == credential_id).first()
+
 def get_doctors_by_hospital(db: Session, hospital_id: int):
     return db.query(Doctor).filter(Doctor.hospital_id == hospital_id).all()
 

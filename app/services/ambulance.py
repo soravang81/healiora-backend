@@ -84,6 +84,9 @@ def get_ambulance_by_id(db: Session, ambulance_id: int):
 def get_ambulance_by_email(db: Session, email: str):
     return db.query(Ambulance).filter(Ambulance.driver_email == email).first()
 
+def get_ambulance_by_credential_id(db: Session, credential_id: int):
+    return db.query(Ambulance).filter(Ambulance.credential_id == credential_id).first()
+
 def get_ambulances_by_hospital(db: Session, hospital_id: int):
     return db.query(Ambulance).filter(Ambulance.hospital_id == hospital_id).all()
 

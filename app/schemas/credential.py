@@ -1,32 +1,39 @@
-from pydantic import BaseModel, EmailStr
-from datetime import datetime
+from pydantic import BaseModel
 from typing import Optional
-
-class CredentialBase(BaseModel):
-    email: EmailStr
-    phone_number: Optional[str] = None
-
-class CredentialCreate(CredentialBase):
-    password: str
-    role: str = "patient"  # Default role is patient
+from datetime import datetime
 
 class CredentialLogin(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
-class CredentialUpdate(BaseModel):
-    email: Optional[EmailStr] = None
-    phone_number: Optional[str] = None
-    password: Optional[str] = None
-    is_active: Optional[bool] = None
+class CredentialBase(BaseModel):
+    email: str
     role: Optional[str] = None
 
-class CredentialOut(CredentialBase):
+class CredentialCreate(BaseModel):
+    email: str
+    password: str
+    role: str = "patient"
+
+class CredentialOut(BaseModel):
     id: int
     role: str
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class UserDataResponse(BaseModel):
+    id: int
+    email: str
+    role: str
+    is_active: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    # Profile data based on role
+    profile_data: Optional[dict] = None
 
     class Config:
         from_attributes = True
