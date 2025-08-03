@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.db.models.credential import Credential
-from app.schemas.credential import CredentialLogin, CredentialOut, UserDataResponse
+from app.schemas.credential import CredentialLogin, CredentialOut, UserDataResponse, UniversalUserResponse
 from app.schemas.token import Token
 from app.core.security import verify_password
 from app.utils.jwt import create_access_token
@@ -63,15 +63,82 @@ def universal_login(payload: CredentialLogin, db: Session = Depends(get_db)):
         "user_id": credential.id
     }
 
-@router.get("/me", response_model=CredentialOut)
-def get_my_credential(
+@router.get("/me", response_model=UniversalUserResponse)
+def get_my_complete_profile(
+    db: Session = Depends(get_db),
     current_user: Credential = Depends(get_current_user)
 ):
     """
-    Get current user's credential data from JWT token.
-    Returns user ID, email, role, and other credential information.
+    Universal /me endpoint that returns complete user details based on their role.
+    
+    Returns:
+    - For Patients: full_name, age, gender, phone_number, emergency_contact
+    - For Doctors: name, address, education, specialization, years_of_experience
+    - For Ambulances: driver_name, driver_phone, ambulance_number, vehicle_type
+    
+    Also includes profile completion percentage and credential information.
     """
-    return current_user
+    # Base response with credential information
+    response_data = {
+        "id": current_user.id,
+        "email": current_user.email,
+        "role": current_user.role,
+        "is_active": current_user.is_active,
+        "created_at": current_user.created_at,
+        "updated_at": current_user.updated_at,
+        "profile_completion_percentage": 0
+    }
+    
+    # Get role-specific profile data
+    if current_user.role == "patient":
+        patient = patient_service.get_patient_by_credential_id(db, current_user.id)
+        if patient:
+            response_data.update({
+                "full_name": patient.full_name,
+                "age": patient.age,
+                "gender": patient.gender,
+                "phone_number": patient.phone_number,
+                "emergency_contact": patient.emergency_contact
+            })
+            # Calculate profile completion for patient
+            filled_fields = sum(1 for field in [patient.full_name, patient.age, patient.gender, 
+                                              patient.phone_number, patient.emergency_contact] if field is not None)
+            response_data["profile_completion_percentage"] = int((filled_fields / 5) * 100)
+    
+    elif current_user.role == "doctor":
+        doctor = doctor_service.get_doctor_by_credential_id(db, current_user.id)
+        if doctor:
+            response_data.update({
+                "name": doctor.name,
+                "address": doctor.address,
+                "education": doctor.education,
+                "specialization": doctor.specialization,
+                "years_of_experience": doctor.years_of_experience
+            })
+            # Calculate profile completion for doctor
+            filled_fields = sum(1 for field in [doctor.name, doctor.address, doctor.education,
+                                              doctor.specialization, doctor.years_of_experience] if field is not None)
+            response_data["profile_completion_percentage"] = int((filled_fields / 5) * 100)
+    
+    elif current_user.role == "ambulance":
+        ambulance = ambulance_service.get_ambulance_by_credential_id(db, current_user.id)
+        if ambulance:
+            response_data.update({
+                "driver_name": ambulance.driver_name,
+                "driver_phone": ambulance.driver_phone,
+                "ambulance_number": ambulance.ambulance_number,
+                "vehicle_type": ambulance.vehicle_type
+            })
+            # Calculate profile completion for ambulance
+            filled_fields = sum(1 for field in [ambulance.driver_name, ambulance.driver_phone,
+                                              ambulance.ambulance_number, ambulance.vehicle_type] if field is not None)
+            response_data["profile_completion_percentage"] = int((filled_fields / 4) * 100)
+    
+    elif current_user.role == "hospital":
+        # For hospital, we can add hospital-specific fields if needed
+        response_data["profile_completion_percentage"] = 100  # Assume complete for hospital
+    
+    return UniversalUserResponse(**response_data)
 
 @router.get("/user-data", response_model=UserDataResponse)
 def get_user_data(

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union
 from datetime import datetime
 
 class CredentialLogin(BaseModel):
@@ -34,6 +34,42 @@ class UserDataResponse(BaseModel):
     updated_at: Optional[datetime] = None
     # Profile data based on role
     profile_data: Optional[dict] = None
+
+    class Config:
+        from_attributes = True
+
+# Universal User Response Schema
+class UniversalUserResponse(BaseModel):
+    # Credential information
+    id: int
+    email: str
+    role: str
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    # Patient-specific fields
+    full_name: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    phone_number: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    
+    # Doctor-specific fields
+    name: Optional[str] = None
+    address: Optional[str] = None
+    education: Optional[str] = None
+    specialization: Optional[str] = None
+    years_of_experience: Optional[int] = None
+    
+    # Ambulance-specific fields
+    driver_name: Optional[str] = None
+    driver_phone: Optional[str] = None
+    ambulance_number: Optional[str] = None
+    vehicle_type: Optional[str] = None
+    
+    # Profile completion percentage
+    profile_completion_percentage: Optional[int] = None
 
     class Config:
         from_attributes = True
