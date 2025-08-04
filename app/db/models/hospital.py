@@ -23,5 +23,6 @@ class Hospital(Base):
     user = relationship("Credential", back_populates="hospital")
     doctors = relationship("Doctor", back_populates="hospital")
     ambulances = relationship("Ambulance", back_populates="hospital")
-    socket_logs = relationship("SocketLog", back_populates="hospital")
+    socket_logs = relationship("SocketLog", back_populates="hospital", foreign_keys="[SocketLog.hospital_id]")
+    accepted_sos_requests = relationship("SocketLog", foreign_keys="[SocketLog.accepted_by_hospital_id]")
 
