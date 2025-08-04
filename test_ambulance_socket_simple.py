@@ -81,7 +81,7 @@ def test_patient_flow():
     try:
         # Connect as patient
         sio.connect('http://localhost:8000?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0MSwiZXhwIjoxNzU0NzMwOTk3fQ.yrqb4QfK03SywQRfnkeSHlYijp1c_dtT_GFKWoMH1kw&role=patient', {
-            'token': "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0MSwiZXhwIjoxNzU0NzMwOTk3fQ.yrqb4QfK03SywQRfnkeSHlYijp1c_dtT_GFKWoMH1kw",
+            'user_id': "12",
             'role': 'patient'
         })
         
