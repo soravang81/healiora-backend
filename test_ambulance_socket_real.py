@@ -77,7 +77,7 @@ def AMBULANCE_ALERT(data):
 def create_test_token(user_id):
     """Create a test JWT token"""
     from app.utils.jwt import create_access_token
-    return create_access_token(user_id=user_id)
+    return create_access_token(user_id=user_id, role="patient")
 
 def test_patient_flow():
     """Test the patient side of ambulance requests"""

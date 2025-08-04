@@ -6,19 +6,36 @@ from pydantic.networks import EmailStr
 class PatientBase(BaseModel):
     full_name: Optional[str] = None
     email: EmailStr
-    gender: Optional[str] = None
-    phone_number: Optional[str] = None
     password: str
-    age: Optional[int] = None
-    emergency_contact: Optional[str] = None
 
 class PatientCreate(PatientBase):
-    pass  # No extra fields; full_name, username, age, emergency contact
+    email: EmailStr
+    password: str
+    full_name: Optional[str] = None
 
+# New schema for initial registration (step 1)
+class PatientInitialRegister(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+
+# Updated schema for additional details (step 2)
 class PatientUpdate(BaseModel):
     full_name: Optional[str] = None
     age: Optional[int] = None
     emergency_contact: Optional[str] = None
+    gender: Optional[str] = None
+    phone_number: Optional[str] = None
+
+# New schema for complete registration with auto-login
+class PatientCompleteRegister(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    age: int
+    phone_number: str
+    emergency_contact: str
+    gender: str
 
 class PatientLogin(BaseModel):
     email: EmailStr
@@ -38,6 +55,11 @@ class PatientOut(BaseModel):
     class Config:
         from_attributes = True
 
+# Response model for complete registration with token
+class PatientRegisterResponse(BaseModel):
+    patient: PatientOut
+    access_token: str
+    token_type: str = "bearer"
 
 class PatientRegisterSchema(BaseModel):
     email: EmailStr

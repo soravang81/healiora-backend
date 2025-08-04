@@ -49,5 +49,5 @@ def login_ambulance(data: AmbulanceLogin, db: Session = Depends(get_db)):
     if not ambulance_cred:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = create_access_token(user_id=ambulance_cred.id)
+    token = create_access_token(user_id=ambulance_cred.id, role="ambulance")
     return {"access_token": token, "token_type": "bearer"} 
