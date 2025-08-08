@@ -14,6 +14,8 @@ from app.services.hospital import (
     get_hospital_by_id,
     update_hospital,
     hospital_login,
+    get_hospitals_within_10km,
+    get_hospitals_within_20km,
 )
 
 from app.middleware.auth import get_current_user
@@ -97,6 +99,70 @@ def update_hospital_info(
     db: Session = Depends(get_db)
 ):
     return update_hospital(db, hospital_id, updates)
+
+
+# ✅ Public: Get hospitals within 10km radius
+@router.get("/nearby/10km")
+def get_hospitals_10km(
+    latitude: float,
+    longitude: float,
+    db: Session = Depends(get_db)
+):
+    """
+    Get hospitals within 10km radius from given coordinates.
+    
+    Args:
+        latitude: User's latitude coordinate
+        longitude: User's longitude coordinate
+        db: Database session
+    
+    Returns:
+        List of hospitals with distance information, sorted by distance (closest first)
+    """
+    if not (-90 <= latitude <= 90):
+        raise HTTPException(status_code=400, detail="Latitude must be between -90 and 90")
+    if not (-180 <= longitude <= 180):
+        raise HTTPException(status_code=400, detail="Longitude must be between -180 and 180")
+    
+    hospitals = get_hospitals_within_10km(db, latitude, longitude)
+    return {
+        "hospitals": hospitals,
+        "count": len(hospitals),
+        "radius_km": 10,
+        "user_location": {"latitude": latitude, "longitude": longitude}
+    }
+
+
+# ✅ Public: Get hospitals within 20km radius
+@router.get("/nearby/20km")
+def get_hospitals_20km(
+    latitude: float,
+    longitude: float,
+    db: Session = Depends(get_db)
+):
+    """
+    Get hospitals within 20km radius from given coordinates.
+    
+    Args:
+        latitude: User's latitude coordinate
+        longitude: User's longitude coordinate
+        db: Database session
+    
+    Returns:
+        List of hospitals with distance information, sorted by distance (closest first)
+    """
+    if not (-90 <= latitude <= 90):
+        raise HTTPException(status_code=400, detail="Latitude must be between -90 and 90")
+    if not (-180 <= longitude <= 180):
+        raise HTTPException(status_code=400, detail="Longitude must be between -180 and 180")
+    
+    hospitals = get_hospitals_within_20km(db, latitude, longitude)
+    return {
+        "hospitals": hospitals,
+        "count": len(hospitals),
+        "radius_km": 20,
+        "user_location": {"latitude": latitude, "longitude": longitude}
+    }
 
 
 
