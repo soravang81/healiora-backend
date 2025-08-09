@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.schemas.ambulance import AmbulanceCreate, AmbulanceOut, AmbulanceLogin
+from app.schemas.ambulance import AmbulanceCreate, AmbulanceOut, AmbulanceLogin, PasswordChangeRequest, PasswordChangeVerify
 from app.services import ambulance as ambulance_service
 from app.db.session import get_db
 from app.schemas.token import Token
@@ -50,4 +50,42 @@ def login_ambulance(data: AmbulanceLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     token = create_access_token(user_id=ambulance_cred.id, role="ambulance")
-    return {"access_token": token, "token_type": "bearer"} 
+    return {"access_token": token, "token_type": "bearer"}
+
+@router.post("/request-password-change")
+def request_password_change_route(
+    request: PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: Credential = Depends(get_current_user)
+):
+    """
+    Request password change for ambulance driver.
+    Sends verification code to the user's email (from JWT token).
+    """
+    if current_user.role != "ambulance":
+        raise HTTPException(status_code=403, detail="Only ambulance drivers can change their password")
+    
+    return ambulance_service.request_password_change(
+        db, 
+        str(current_user.email), 
+        request.current_password, 
+        request.new_password
+    )
+
+@router.post("/change-password")
+def change_password_route(
+    request: PasswordChangeVerify,
+    db: Session = Depends(get_db),
+    current_user: Credential = Depends(get_current_user)
+):
+    """
+    Change password using verification code.
+    """
+    if current_user.role != "ambulance":
+        raise HTTPException(status_code=403, detail="Only ambulance drivers can change their password")
+    
+    return ambulance_service.change_password_with_verification(
+        db, 
+        str(current_user.email), 
+        request.verification_code
+    ) 
