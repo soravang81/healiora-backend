@@ -8,6 +8,11 @@ from app.utils.email import send_email
 import secrets
 import string
 from fastapi import HTTPException
+import random
+import time
+
+# In-memory storage for verification codes (in production, use Redis or database)
+verification_codes = {}
 
 def generate_password(length: int = 12) -> str:
     """Generate a secure random password with letters, digits, and symbols."""
@@ -20,6 +25,36 @@ def generate_password(length: int = 12) -> str:
             and any(c.isdigit() for c in password)
             and any(c in string.punctuation for c in password)):
             return password
+
+def generate_verification_code() -> str:
+    """Generate a 6-digit verification code."""
+    return ''.join([str(random.randint(0, 9)) for _ in range(6)])
+
+def store_verification_code(email: str, code: str, new_password: str = None):
+    """Store verification code with expiration (10 minutes)."""
+    verification_codes[email] = {
+        'code': code,
+        'expires_at': time.time() + 600  # 10 minutes
+    }
+    if new_password:
+        verification_codes[email]['new_password'] = new_password
+
+def verify_verification_code(email: str, code: str) -> bool:
+    """Verify the provided code for the email."""
+    if email not in verification_codes:
+        return False
+    
+    stored_data = verification_codes[email]
+    if time.time() > stored_data['expires_at']:
+        # Code expired, remove it
+        del verification_codes[email]
+        return False
+    
+    if stored_data['code'] == code:
+        # Code verified, but don't delete it yet - we need to retrieve the new password
+        return True
+    
+    return False
 
 def create_ambulance(
     db: Session,
@@ -98,3 +133,82 @@ def authenticate_ambulance(db: Session, email: str, password: str):
     if not cred or not verify_password(password, cred.password):
         return None
     return cred 
+
+def request_password_change(db: Session, email: str, current_password: str, new_password: str):
+    """Request password change for ambulance user."""
+    # Check if ambulance exists
+    ambulance = db.query(Ambulance).filter(Ambulance.driver_email == email).first()
+    if not ambulance:
+        raise HTTPException(status_code=404, detail="Ambulance not found")
+    
+    # Check if credential exists
+    credential = db.query(Credential).filter(Credential.email == email).first()
+    if not credential:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify current password
+    if not verify_password(current_password, credential.password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    # Generate verification code
+    verification_code = generate_verification_code()
+    store_verification_code(email, verification_code, new_password)
+    
+    # Send email with verification code
+    email_body = f"""
+    Hello {ambulance.driver_name},
+    
+    You have requested to change your password for your ambulance driver account.
+    
+    Your verification code is: {verification_code}
+    
+    This code will expire in 10 minutes.
+    
+    If you didn't request this password change, please ignore this email.
+    
+    Best regards,
+    Healiora Team
+    """
+    
+    try:
+        send_email(
+            to_email=email,
+            subject="Password Change Request - Ambulance Driver",
+            body=email_body
+        )
+        return {"message": "Verification code sent to your email"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to send verification email")
+
+def change_password_with_verification(db: Session, email: str, verification_code: str):
+    """Change password using verification code."""
+    # Check if ambulance exists
+    ambulance = db.query(Ambulance).filter(Ambulance.driver_email == email).first()
+    if not ambulance:
+        raise HTTPException(status_code=404, detail="Ambulance not found")
+    
+    # Check if credential exists
+    credential = db.query(Credential).filter(Credential.email == email).first()
+    if not credential:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify the code
+    if not verify_verification_code(email, verification_code):
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+    
+    # Get the stored new password
+    if email not in verification_codes or 'new_password' not in verification_codes[email]:
+        raise HTTPException(status_code=400, detail="Password change request not found or expired")
+    
+    new_password = verification_codes[email]['new_password']
+    
+    # Update password
+    credential.password = hash_password(new_password)
+    db.commit()
+    db.refresh(credential)
+    
+    # Clean up stored data after successful password change
+    if email in verification_codes:
+        del verification_codes[email]
+    
+    return {"message": "Password changed successfully"} 

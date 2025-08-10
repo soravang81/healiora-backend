@@ -33,6 +33,15 @@ class SocketLog(Base):
     error_message = Column(Text, nullable=True)
     processed = Column(Boolean, default=False)                   # Whether the event was processed successfully
     
+    # SOS specific fields
+    sos_status = Column(String, nullable=True, index=True)      # 'accepted', 'rejected', 'pending', 'expired'
+    sos_acceptance_date = Column(DateTime(timezone=True), nullable=True, index=True)  # When SOS was accepted
+    sos_rejection_date = Column(DateTime(timezone=True), nullable=True, index=True)   # When SOS was rejected
+    sos_expiry_date = Column(DateTime(timezone=True), nullable=True, index=True)      # When SOS expires
+    accepted_by_hospital_id = Column(Integer, ForeignKey("hospitals.id"), nullable=True, index=True)
+    accepted_by_hospital_name = Column(String, nullable=True)
+    rejection_reason = Column(Text, nullable=True)              # Reason for rejection if applicable
+    
     # Timing
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     processed_at = Column(DateTime(timezone=True), nullable=True)
@@ -44,7 +53,8 @@ class SocketLog(Base):
     session_duration = Column(Integer, nullable=True)            # Session duration in seconds
     
     # Relationships
-    hospital = relationship("Hospital", back_populates="socket_logs")
+    hospital = relationship("Hospital", back_populates="socket_logs", foreign_keys=[hospital_id])
+    accepted_by_hospital = relationship("Hospital", foreign_keys=[accepted_by_hospital_id])
     
     def __repr__(self):
         return f"<SocketLog(id={self.id}, event_type='{self.event_type}', user_id='{self.user_id}', status='{self.status}')>" 

@@ -13,6 +13,11 @@ class HospitalCreate(BaseModel):
     admin_name: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    hospital_type: Optional[str] = None  # "government" or "private"
+    emergency_available: Optional[bool] = None
+    available_24_7: Optional[bool] = None
+    registration_number: Optional[str] = None
+    departments: Optional[str] = None  # Comma-separated list of departments
 
 class HospitalUpdate(BaseModel):
     name: Optional[str] = None
@@ -20,6 +25,11 @@ class HospitalUpdate(BaseModel):
     phone: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    hospital_type: Optional[str] = None
+    emergency_available: Optional[bool] = None
+    available_24_7: Optional[bool] = None
+    registration_number: Optional[str] = None
+    departments: Optional[str] = None
 
 class HospitalOut(BaseModel):
     id: int
@@ -30,6 +40,11 @@ class HospitalOut(BaseModel):
     longitude: Optional[float] = None
     admin_name: Optional[str] = None
     created_at: datetime
+    hospital_type: Optional[str] = None
+    emergency_available: Optional[bool] = None
+    available_24_7: Optional[bool] = None
+    registration_number: Optional[str] = None
+    departments: Optional[str] = None
 
     class Config:
         orm_mode = True

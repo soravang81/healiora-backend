@@ -11,21 +11,21 @@ class AmbulanceBase(BaseModel):
 class AmbulanceCreate(AmbulanceBase):
     pass
 
-class AmbulanceUpdate(BaseModel):
-    ambulance_number: Optional[str] = None
-    driver_name: Optional[str] = None
-    driver_phone: Optional[str] = None
-    driver_email: Optional[EmailStr] = None
-    vehicle_type: Optional[str] = None
+class AmbulanceOut(AmbulanceBase):
+    id: int
+    hospital_id: int
+    credential_id: int
+
+    class Config:
+        orm_mode = True
 
 class AmbulanceLogin(BaseModel):
     email: EmailStr
     password: str
 
-class AmbulanceOut(AmbulanceBase):
-    id: int
-    credential_id: int
-    hospital_id: int
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
 
-    class Config:
-        orm_mode = True 
+class PasswordChangeVerify(BaseModel):
+    verification_code: str 

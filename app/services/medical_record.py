@@ -5,6 +5,10 @@ from app.db.models.patient import Patient
 from app.db.models.credential import Credential
 from app.schemas.medical_record import MedicalRecordCreate, MedicalRecordUpdate
 
+def create_medical_record(db: Session, user_id: int, record_data: MedicalRecordCreate):
+    """Create a medical record for a user"""
+    return create_patient_medical_record(db, user_id, record_data)
+
 def create_patient_medical_record(db: Session, credential_id: int, record_data: MedicalRecordCreate):
     # Ensure the user is a patient
     credential = db.query(Credential).filter(Credential.id == credential_id).first()
@@ -30,7 +34,11 @@ def create_patient_medical_record(db: Session, credential_id: int, record_data: 
     db.refresh(record)
     return record
 
-def get_medical_record(db: Session, credential_id: int):
+def get_medical_record(db: Session, user_id: int):
+    """Get medical record for a user"""
+    return get_patient_medical_record(db, user_id)
+
+def get_patient_medical_record(db: Session, credential_id: int):
     patient = db.query(Patient).filter(Patient.credential_id == credential_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -40,7 +48,11 @@ def get_medical_record(db: Session, credential_id: int):
         raise HTTPException(status_code=404, detail="Medical record not found")
     return record
 
-def update_medical_record(db: Session, credential_id: int, update_data: MedicalRecordUpdate):
+def update_medical_record(db: Session, user_id: int, update_data: MedicalRecordUpdate):
+    """Update medical record for a user"""
+    return update_patient_medical_record(db, user_id, update_data)
+
+def update_patient_medical_record(db: Session, credential_id: int, update_data: MedicalRecordUpdate):
     patient = db.query(Patient).filter(Patient.credential_id == credential_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -56,7 +68,11 @@ def update_medical_record(db: Session, credential_id: int, update_data: MedicalR
     db.refresh(record)
     return record
 
-def delete_medical_record(db: Session, credential_id: int):
+def delete_medical_record(db: Session, user_id: int):
+    """Delete medical record for a user"""
+    return delete_patient_medical_record(db, user_id)
+
+def delete_patient_medical_record(db: Session, credential_id: int):
     patient = db.query(Patient).filter(Patient.credential_id == credential_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")

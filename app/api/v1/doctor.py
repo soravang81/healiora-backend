@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.schemas.doctor import DoctorCreate, DoctorOut, DoctorLogin
+from app.schemas.doctor import DoctorCreate, DoctorOut, DoctorLogin, PasswordChangeRequest, PasswordChangeVerify
 from app.db.session import get_db
 from app.services import doctor as doctor_service
 from app.schemas.token import Token
@@ -61,3 +61,41 @@ def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
 @router.get("/hospital/{hospital_id}", response_model=List[DoctorOut])
 def get_doctors_by_hospital(hospital_id: int, db: Session = Depends(get_db)):
     return doctor_service.get_doctors_by_hospital(db, hospital_id)
+
+@router.post("/request-password-change")
+def request_password_change_route(
+    request: PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: Credential = Depends(get_current_user)
+):
+    """
+    Request password change for doctor.
+    Sends verification code to the user's email (from JWT token).
+    """
+    if current_user.role != "doctor":
+        raise HTTPException(status_code=403, detail="Only doctors can change their password")
+    
+    return doctor_service.request_password_change(
+        db, 
+        str(current_user.email), 
+        request.current_password, 
+        request.new_password
+    )
+
+@router.post("/change-password")
+def change_password_route(
+    request: PasswordChangeVerify,
+    db: Session = Depends(get_db),
+    current_user: Credential = Depends(get_current_user)
+):
+    """
+    Change password using verification code.
+    """
+    if current_user.role != "doctor":
+        raise HTTPException(status_code=403, detail="Only doctors can change their password")
+    
+    return doctor_service.change_password_with_verification(
+        db, 
+        str(current_user.email), 
+        request.verification_code
+    )
