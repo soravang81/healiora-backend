@@ -25,6 +25,7 @@ def universal_login(payload: CredentialLogin, db: Session = Depends(get_db)):
     """
     # Step 1: Find credential by email
     credential = db.query(Credential).filter(Credential.email == payload.email).first()
+    print(credential)
     
     if not credential or not verify_password(payload.password, credential.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")

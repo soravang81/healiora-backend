@@ -3,6 +3,7 @@ from typing import Optional, Union
 from datetime import datetime
 
 class CredentialLogin(BaseModel):
+    # role: str
     email: str
     password: str
 
