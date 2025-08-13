@@ -1,6 +1,6 @@
 # app/services/socket_log.py
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_, or_
+from sqlalchemy import desc, and_, or_, func
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from app.db.models.socket_log import SocketLog
@@ -489,7 +489,7 @@ def get_sos_statistics(
     # SOS requests by status
     sos_by_status = db.query(
         SocketLog.sos_status,
-        db.func.count(SocketLog.id).label('count')
+        func.count(SocketLog.id).label('count')
     ).filter(
         and_(
             SocketLog.event_type == "ambulance_request",

@@ -54,7 +54,7 @@ class SocketLog(Base):
     
     # Relationships
     hospital = relationship("Hospital", back_populates="socket_logs", foreign_keys=[hospital_id])
-    accepted_by_hospital = relationship("Hospital", foreign_keys=[accepted_by_hospital_id])
+    accepted_by_hospital = relationship("Hospital", foreign_keys=[accepted_by_hospital_id], overlaps="accepted_sos_requests")
     
     def __repr__(self):
         return f"<SocketLog(id={self.id}, event_type='{self.event_type}', user_id='{self.user_id}', status='{self.status}')>" 

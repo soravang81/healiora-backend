@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 
 from app.db.session import get_db
-from app.utils.deps import get_current_user, require_admin
+from app.utils.deps import get_current_user
 from app.db.models.credential import Credential
 from app.schemas.socket_log import (
     SocketLogOut, 
@@ -32,6 +32,7 @@ from app.services.socket_log import (
     get_sos_requests_by_hospital,
     get_pending_sos_requests
 )
+from app.services.ambulance import get_ambulances_by_hospital
 
 router = APIRouter()
 
@@ -64,10 +65,10 @@ def get_ambulance_request_logs(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: Credential = Depends(require_admin)
+    current_user: Credential = Depends(get_current_user)
 ):
     """
-    Get ambulance request logs (Admin only)
+    Get ambulance request logs (Authenticated users only)
     """
     return get_ambulance_requests(
         db, hospital_id, status, start_date, end_date, limit, offset
@@ -147,10 +148,10 @@ def reject_sos_request_api(
 def expire_sos_request_api(
     socket_log_id: int,
     db: Session = Depends(get_db),
-    current_user: Credential = Depends(require_admin)
+    current_user: Credential = Depends(get_current_user)
 ):
     """
-    Mark an SOS request as expired (Admin only)
+    Mark an SOS request as expired (Authenticated users only)
     """
     result = expire_sos_request(db=db, socket_log_id=socket_log_id)
     
@@ -169,10 +170,10 @@ def get_sos_requests_by_status_api(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: Credential = Depends(require_admin)
+    current_user: Credential = Depends(get_current_user)
 ):
     """
-    Get SOS requests filtered by status (Admin only)
+    Get SOS requests filtered by status (Authenticated users only)
     """
     valid_statuses = ["pending", "accepted", "rejected", "expired"]
     if sos_status not in valid_statuses:
@@ -188,10 +189,10 @@ def get_sos_statistics_api(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     db: Session = Depends(get_db),
-    current_user: Credential = Depends(require_admin)
+    current_user: Credential = Depends(get_current_user)
 ):
     """
-    Get SOS-specific statistics (Admin only)
+    Get SOS-specific statistics (Authenticated users only)
     """
     return get_sos_statistics(db, start_date, end_date)
 
@@ -205,10 +206,10 @@ def get_sos_requests_by_hospital_api(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: Credential = Depends(require_admin)
+    current_user: Credential = Depends(get_current_user)
 ):
     """
-    Get SOS requests for a specific hospital (Admin only)
+    Get SOS requests for a specific hospital (Authenticated users only)
     """
     return get_sos_requests_by_hospital(
         db, hospital_id, sos_status, start_date, end_date, limit, offset
@@ -220,10 +221,10 @@ def get_pending_sos_requests_api(
     hospital_id: Optional[int] = None,
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    current_user: Credential = Depends(require_admin)
+    current_user: Credential = Depends(get_current_user)
 ):
     """
-    Get pending SOS requests that need attention (Admin only)
+    Get pending SOS requests that need attention (Authenticated users only)
     """
     return get_pending_sos_requests(db, hospital_id, limit)
 
@@ -332,11 +333,23 @@ def get_sos_dashboard_data(
         # Get pending requests for this hospital
         pending_requests = get_pending_sos_requests(db, user_hospital_id, limit=10)
         
+        # Convert status_counts to statistics format
+        statistics = {
+            "total_sos": sum(status_counts.values()),
+            "pending_sos": status_counts["pending"],
+            "accepted_sos": status_counts["accepted"],
+            "rejected_sos": status_counts["rejected"],
+            "expired_sos": status_counts["expired"],
+            "avg_response_time": "N/A",  # TODO: Calculate actual response time
+            "this_month": sum(status_counts.values()),
+            "this_year": sum(status_counts.values())
+        }
+        
         return {
             "user_role": "hospital",
             "hospital_id": user_hospital_id,
             "hospital_name": current_user.hospital.name if hasattr(current_user, 'hospital') and current_user.hospital else None,
-            "status_counts": status_counts,
+            "statistics": statistics,
             "pending_requests": pending_requests,
             "recent_requests": hospital_sos_requests[:10],
             "time_range": {
@@ -344,6 +357,121 @@ def get_sos_dashboard_data(
                 "end_date": end_date.isoformat()
             }
         }
+
+
+@router.get("/comprehensive-dashboard")
+def get_comprehensive_dashboard_data(
+    db: Session = Depends(get_db),
+    current_user: Credential = Depends(get_current_user)
+):
+    """
+    Get comprehensive dashboard data combining all socket logs, SOS data, and statistics in one request
+    """
+    if current_user.role not in ["admin", "hospital"]:
+        raise HTTPException(status_code=403, detail="Access denied. Admin or Hospital users only.")
+    
+    # Get time range for last 30 days
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=30)
+    
+    try:
+        # Get SOS statistics
+        sos_stats = get_sos_statistics(db, start_date, end_date)
+        
+        # Get recent activity (last 24 hours)
+        activity_end_date = datetime.utcnow()
+        activity_start_date = activity_end_date - timedelta(hours=24)
+        recent_activity = get_socket_logs_by_time_range(
+            db, activity_start_date, activity_end_date, user_roles=[current_user.role], limit=20
+        )
+        
+        # Filter activity by current user
+        user_activity = [log for log in recent_activity if log.user_id == str(current_user.id)]
+        
+        if current_user.role == "admin":
+            # Admin gets global data
+            pending_requests = get_pending_sos_requests(db, limit=20)
+            ambulance_requests = get_ambulance_requests(db, limit=20, offset=0)
+            hospital_responses = get_hospital_responses(db, limit=20, offset=0)
+            
+            return {
+                "user_role": "admin",
+                "user_id": current_user.id,
+                "hospital_info": None,
+                "sos_statistics": sos_stats,
+                "pending_sos_requests": pending_requests,
+                "recent_activity": user_activity,
+                "ambulance_requests": ambulance_requests,
+                "hospital_responses": hospital_responses,
+                "time_range": {
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "activity_start": activity_start_date.isoformat(),
+                    "activity_end": activity_end_date.isoformat()
+                }
+            }
+        else:
+            # Hospital users get their hospital-specific data
+            user_hospital_id = current_user.hospital.id if hasattr(current_user, 'hospital') and current_user.hospital else None
+            
+            if not user_hospital_id:
+                raise HTTPException(status_code=404, detail="Hospital not found for current user")
+            
+            # Get hospital-specific data
+            hospital_pending_requests = get_pending_sos_requests(db, user_hospital_id, limit=20)
+            hospital_sos_requests = get_sos_requests_by_hospital(
+                db, user_hospital_id, start_date=start_date, end_date=end_date, limit=50
+            )
+            hospital_ambulance_requests = get_ambulance_requests(
+                db, hospital_id=user_hospital_id, limit=20, offset=0
+            )
+            hospital_responses = get_hospital_responses(
+                db, hospital_id=user_hospital_id, limit=20, offset=0
+            )
+            
+            # Get actual ambulance count for this hospital
+            hospital_ambulances = get_ambulances_by_hospital(db, user_hospital_id)
+            ambulance_count = len(hospital_ambulances)
+            
+            # Count by status
+            status_counts = {
+                "pending": 0,
+                "accepted": 0,
+                "rejected": 0,
+                "expired": 0
+            }
+            
+            for request in hospital_sos_requests:
+                if request.sos_status:
+                    status_counts[request.sos_status] += 1
+            
+            return {
+                "user_role": "hospital",
+                "user_id": current_user.id,
+                "hospital_info": {
+                    "id": user_hospital_id,
+                    "name": current_user.hospital.name if hasattr(current_user, 'hospital') and current_user.hospital else None,
+                    "address": current_user.hospital.address if hasattr(current_user, 'hospital') and current_user.hospital else None,
+                    "phone": current_user.hospital.phone if hasattr(current_user, 'hospital') and current_user.hospital else None
+                },
+                "sos_statistics": sos_stats,
+                "status_counts": status_counts,
+                "pending_sos_requests": hospital_pending_requests,
+                "recent_sos_requests": hospital_sos_requests[:10],
+                "recent_activity": user_activity,
+                "ambulance_requests": hospital_ambulance_requests,
+                "hospital_responses": hospital_responses,
+                "ambulance_count": ambulance_count,
+                "time_range": {
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "activity_start": activity_start_date.isoformat(),
+                    "activity_end": activity_end_date.isoformat()
+                }
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch dashboard data: {str(e)}")
 
 
 @router.get("/hospital-responses", response_model=List[SocketLogOut])
@@ -355,10 +483,10 @@ def get_hospital_response_logs(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: Credential = Depends(require_admin)
+    current_user: Credential = Depends(get_current_user)
 ):
     """
-    Get hospital response logs (Admin only)
+    Get hospital response logs (Authenticated users only)
     """
     return get_hospital_responses(
         db, hospital_id, status, start_date, end_date, limit, offset
@@ -371,10 +499,10 @@ def get_logs_by_event_type(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: Credential = Depends(require_admin)
+    current_user: Credential = Depends(get_current_user)
 ):
     """
-    Get socket logs by event type (Admin only)
+    Get socket logs by event type (Authenticated users only)
     """
     return get_socket_logs_by_event_type(db, event_type, limit, offset)
 
@@ -388,10 +516,10 @@ def get_logs_by_time_range(
     limit: int = Query(1000, ge=1, le=5000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: Credential = Depends(require_admin)
+    current_user: Credential = Depends(get_current_user)
 ):
     """
-    Get socket logs within a time range (Admin only)
+    Get socket logs within a time range (Authenticated users only)
     """
     return get_socket_logs_by_time_range(
         db, start_date, end_date, event_types, user_roles, limit, offset
@@ -403,10 +531,10 @@ def get_socket_statistics_api(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     db: Session = Depends(get_db),
-    current_user: Credential = Depends(require_admin)
+    current_user: Credential = Depends(get_current_user)
 ):
     """
-    Get socket usage statistics (Admin only)
+    Get socket usage statistics (Authenticated users only)
     """
     return get_socket_statistics(db, start_date, end_date)
 

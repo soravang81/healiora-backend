@@ -8,6 +8,7 @@ from app.services.hospital import get_all_hospitals
 from app.services.patient import get_patient_by_credential_id
 from app.utils.jwt import verify_token
 from app.services.socket_log import create_socket_log, update_socket_log
+from app.db.models.socket_log import SocketLog
 from datetime import datetime
 
 # mgr = socketio.AsyncRedisManager(url="redis://localhost:6379/0") 
@@ -80,6 +81,7 @@ def find_nearest_hospital(patient_lat: float, patient_lon: float, db: Session) -
                 )
                 hospitals_with_distance.append({
                     'id': hospital.id,
+                    'credential_id': hospital.credential_id,
                     'name': hospital.name,
                     'address': hospital.address,
                     'latitude': hospital.latitude,
@@ -305,25 +307,39 @@ async def ambulance_request(sid, data):
             
             print(f"🏥 Nearest hospital: {nearest_hospital['name']} ({nearest_hospital['distance']:.2f} km)")
             
+            # Add this debug code temporarily
+            print(f"🔍 DEBUG: nearest_hospital data: {nearest_hospital}")
+            print(f"🔍 DEBUG: connected_users: {connected_users}")
+
             # Check if hospital is connected
-            hospital_user_id = str(nearest_hospital['id'])
-            if hospital_user_id not in connected_users:
+            hospital_user_id = nearest_hospital['credential_id']
+            print(f"🔍 DEBUG: hospital_user_id type: {type(hospital_user_id)}, value: {hospital_user_id}")
+            print(f"🔍 DEBUG: connected_users keys: {list(connected_users.keys())}")
+            print(f"🔍 DEBUG: hospital_user_id in connected_users: {hospital_user_id in connected_users}")
+            if hospital_user_id in connected_users:
+                print(f"🔍 DEBUG: Hospital found in connected_users!")
+                hospital_socket_data = connected_users[hospital_user_id]
+                print(f"🔍 DEBUG: hospital_socket_data: {hospital_socket_data}")
+                print(f"🔍 DEBUG: hospital_socket_data['role']: {hospital_socket_data['role']}")
+                print(f"🔍 DEBUG: Role comparison: '{hospital_socket_data['role']}' == 'hospital': {hospital_socket_data['role'] == 'hospital'}")
+                
+                if hospital_socket_data["role"] != "hospital":
+                    print(f"⚠️ User {hospital_user_id} is not a hospital")
+                    await sio.emit("ambulance_request_error", {"error": "Hospital not available"}, to=sid)
+                    
+                    # Update log with error
+                    if log_id:
+                        update_socket_log(db, log_id, status="failed", error_message="User is not a hospital")
+                    return
+                else:
+                    print(f"✅ Hospital role check passed!")
+            else:
                 print(f"⚠️ Hospital {nearest_hospital['name']} is not connected")
                 await sio.emit("ambulance_request_error", {"error": "Nearest hospital is not available"}, to=sid)
                 
                 # Update log with error
                 if log_id:
                     update_socket_log(db, log_id, status="failed", error_message="Nearest hospital not connected")
-                return
-            
-            hospital_socket_data = connected_users[hospital_user_id]
-            if hospital_socket_data["role"] != "hospital":
-                print(f"⚠️ User {hospital_user_id} is not a hospital")
-                await sio.emit("ambulance_request_error", {"error": "Hospital not available"}, to=sid)
-                
-                # Update log with error
-                if log_id:
-                    update_socket_log(db, log_id, status="failed", error_message="User is not a hospital")
                 return
             
             # Prepare ambulance alert data
@@ -355,18 +371,28 @@ async def ambulance_request(sid, data):
                 "estimated_time": f"{int(nearest_hospital['distance'] * 2)} minutes"
             }, to=sid)
             
-            # Update log with success
+            # Update log with success and hospital information
             if log_id:
                 response_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
                 update_socket_log(
                     db, log_id, 
                     status="success", 
                     response_data=ambulance_alert_data,
-                    hospital_id=nearest_hospital['id'],
-                    hospital_name=nearest_hospital['name'],
-                    distance_km=str(round(nearest_hospital['distance'], 2)),
                     response_time_ms=response_time
                 )
+                
+                # Also update the log with hospital information so it appears in SOS dashboard
+                try:
+                    # Get the log entry and update it with hospital info
+                    log_entry = db.query(SocketLog).filter(SocketLog.id == log_id).first()
+                    if log_entry:
+                        log_entry.hospital_id = nearest_hospital['id']
+                        log_entry.hospital_name = nearest_hospital['name']
+                        log_entry.sos_status = "pending"  # Set SOS status for dashboard filtering
+                        db.commit()
+                        print(f"✅ Updated log entry {log_id} with hospital info")
+                except Exception as e:
+                    print(f"❌ Error updating log with hospital info: {e}")
             
         finally:
             db.close()
