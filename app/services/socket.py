@@ -13,7 +13,7 @@ from datetime import datetime
 
 # mgr = socketio.AsyncRedisManager(url="redis://localhost:6379/0") 
 sio = socketio.AsyncServer(
-    async_mode="asgi", cors_allowed_origins=[]
+    async_mode="asgi", cors_allowed_origins="*"
 )
 
 # Store connected users: {user_id: {socket_id: str, role: str}}
