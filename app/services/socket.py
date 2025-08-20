@@ -505,3 +505,326 @@ async def hospital_response(sid, data):
 async def my_event(sid, data):
     print(f"📦 Received data from {sid}: {data}")
     await sio.emit("response", {"data": "Message received!"}, to=sid)
+
+@sio.event
+async def get_available_doctors(sid, data):
+    """
+    Get available doctors for a hospital
+    data should contain: {hospital_id}
+    """
+    try:
+        print(f"👨‍⚕️ Get available doctors request from {sid}: {data}")
+        
+        hospital_id = data.get("hospital_id")
+        if not hospital_id:
+            await sio.emit("available_doctors_error", {"error": "Missing hospital_id"}, to=sid)
+            return
+        
+        # Get database session
+        db = next(get_db())
+        
+        # Get available doctors for the hospital
+        from app.services.doctor import get_doctors_by_hospital
+        doctors = get_doctors_by_hospital(db, hospital_id)
+        
+        # Filter only available doctors (you might want to add availability status to doctor model)
+        available_doctors = []
+        for doctor in doctors:
+            available_doctors.append({
+                "id": doctor.id,
+                "credential_id": doctor.credential_id,
+                "name": doctor.name,
+                "specialization": doctor.specialization,
+                "phone": doctor.phone_number,
+                "email": doctor.email,
+                "is_available": True  # You can add availability logic here
+            })
+        
+        await sio.emit("available_doctors", {
+            "hospital_id": hospital_id,
+            "doctors": available_doctors
+        }, to=sid)
+        
+        print(f"✅ Sent {len(available_doctors)} available doctors to {sid}")
+        
+    except Exception as e:
+        print(f"❌ Error getting available doctors: {e}")
+        await sio.emit("available_doctors_error", {"error": str(e)}, to=sid)
+
+@sio.event
+async def get_available_ambulances(sid, data):
+    """
+    Get available ambulances for a hospital
+    data should contain: {hospital_id}
+    """
+    try:
+        print(f"🚑 Get available ambulances request from {sid}: {data}")
+        
+        hospital_id = data.get("hospital_id")
+        if not hospital_id:
+            await sio.emit("available_ambulances_error", {"error": "Missing hospital_id"}, to=sid)
+            return
+        
+        # Get database session
+        db = next(get_db())
+        
+        # Get available ambulances for the hospital
+        from app.services.ambulance import get_ambulances_by_hospital
+        ambulances = get_ambulances_by_hospital(db, hospital_id)
+        
+        # Filter only available ambulances (you might want to add availability status to ambulance model)
+        available_ambulances = []
+        for ambulance in ambulances:
+            available_ambulances.append({
+                "id": ambulance.id,
+                "credential_id": ambulance.credential_id,
+                "ambulance_number": ambulance.ambulance_number,
+                "driver_name": ambulance.driver_name,
+                "driver_phone": ambulance.driver_phone,
+                "vehicle_type": ambulance.vehicle_type,
+                "is_available": True  # You can add availability logic here
+            })
+        
+        await sio.emit("available_ambulances", {
+            "hospital_id": hospital_id,
+            "ambulances": available_ambulances
+        }, to=sid)
+        
+        print(f"✅ Sent {len(available_ambulances)} available ambulances to {sid}")
+        
+    except Exception as e:
+        print(f"❌ Error getting available ambulances: {e}")
+        await sio.emit("available_ambulances_error", {"error": str(e)}, to=sid)
+
+@sio.event
+async def assign_doctor_and_ambulance(sid, data):
+    """
+    Assign doctor and ambulance to an accepted SOS case
+    data should contain: {patient_id, hospital_id, doctor_id, doctor_credential_id, ambulance_id, ambulance_credential_id, case_details}
+    """
+    start_time = datetime.utcnow()
+    log_id = None
+    
+    try:
+        print(f"👨‍⚕️🚑 Assign doctor and ambulance request from {sid}: {data}")
+        
+        patient_id = data.get("patient_id")
+        hospital_id = data.get("hospital_id")
+        doctor_id = data.get("doctor_id")
+        doctor_credential_id = data.get("doctor_credential_id")
+        ambulance_id = data.get("ambulance_id")
+        ambulance_credential_id = data.get("ambulance_credential_id")
+        case_details = data.get("case_details", {})
+        
+        if not all([patient_id, hospital_id, doctor_id, doctor_credential_id, ambulance_id, ambulance_credential_id]):
+            await sio.emit("assignment_error", {"error": "Missing required fields"}, to=sid)
+            return
+        
+        # Get database session
+        db = next(get_db())
+        
+        # Log the assignment
+        try:
+            socket_log = create_socket_log(
+                db=db,
+                event_type="doctor_ambulance_assignment",
+                socket_id=sid,
+                user_id=str(hospital_id),
+                user_role="hospital",
+                event_data=data,
+                request_data=case_details,
+                hospital_id=hospital_id,
+                status="pending"
+            )
+            log_id = socket_log.id
+        except Exception as e:
+            print(f"❌ Error logging assignment: {e}")
+        
+        # Get doctor and ambulance details
+        from app.services.doctor import get_doctor_by_id
+        from app.services.ambulance import get_ambulance_by_id
+        
+        doctor = get_doctor_by_id(db, doctor_id)
+        ambulance = get_ambulance_by_id(db, ambulance_id)
+        
+        # Verify credential IDs match
+        if not doctor or not ambulance:
+            await sio.emit("assignment_error", {"error": "Doctor or ambulance not found"}, to=sid)
+            return
+        
+        if doctor.credential_id != doctor_credential_id:
+            await sio.emit("assignment_error", {"error": "Doctor credential ID mismatch"}, to=sid)
+            return
+        
+        if ambulance.credential_id != ambulance_credential_id:
+            await sio.emit("assignment_error", {"error": "Ambulance credential ID mismatch"}, to=sid)
+            return
+        
+        # Find patient's socket (accept either credential_id or patient table id) and be tolerant of int/str keys
+        candidate_keys = []
+        # Original value
+        candidate_keys.append(patient_id)
+        # String form
+        try:
+            candidate_keys.append(str(patient_id))
+        except Exception:
+            pass
+        # Int form
+        try:
+            candidate_keys.append(int(patient_id))
+        except Exception:
+            pass
+
+        # Attempt to map patient DB id -> credential_id
+        mapped_user_id = None
+        try:
+            from app.db.models.patient import Patient as PatientModel
+            maybe_int_id = int(patient_id)
+            patient_row = db.query(PatientModel).filter(PatientModel.id == maybe_int_id).first()
+            if patient_row:
+                mapped_user_id = patient_row.credential_id
+        except Exception:
+            pass
+        if mapped_user_id is not None:
+            candidate_keys.extend([mapped_user_id])
+            try:
+                candidate_keys.append(str(mapped_user_id))
+            except Exception:
+                pass
+
+        # Resolve the first matching key
+        resolved_key = None
+        for key in candidate_keys:
+            if key in connected_users:
+                resolved_key = key
+                break
+
+        if resolved_key is None:
+            print(f"⚠️ Patient {patient_id} is not connected")
+            await sio.emit("assignment_error", {"error": "Patient not connected"}, to=sid)
+            return
+
+        patient_socket_data = connected_users[resolved_key]
+        
+        # Send assignment confirmation to patient
+        assignment_data = {
+            "message": "Doctor and ambulance have been assigned to your case!",
+            "doctor": {
+                "id": doctor.id,
+                "name": doctor.name,
+                "specialization": doctor.specialization,
+                "phone": doctor.phone_number
+            },
+            "ambulance": {
+                "id": ambulance.id,
+                "ambulance_number": ambulance.ambulance_number,
+                "driver_name": ambulance.driver_name,
+                "driver_phone": ambulance.driver_phone,
+                "vehicle_type": ambulance.vehicle_type
+            },
+            "estimated_arrival": case_details.get("estimated_arrival"),
+            "case_details": case_details
+        }
+        
+        await sio.emit("doctor_ambulance_assigned", assignment_data, to=patient_socket_data["socket_id"])
+        print(f"✅ Doctor and ambulance assignment sent to patient {patient_id}")
+        
+        # Also notify doctor and ambulance in real-time if they are connected
+        try:
+            # Resolve doctor socket across possible key types (int/str)
+            doctor_candidate_keys = []
+            doctor_candidate_keys.append(doctor_credential_id)
+            try:
+                doctor_candidate_keys.append(str(doctor_credential_id))
+            except Exception:
+                pass
+            try:
+                doctor_candidate_keys.append(int(doctor_credential_id))
+            except Exception:
+                pass
+
+            doctor_socket = None
+            for key in doctor_candidate_keys:
+                socket_data = connected_users.get(key)
+                if socket_data:
+                    doctor_socket = socket_data
+                    break
+
+            if doctor_socket and doctor_socket.get("role") == "doctor":
+                await sio.emit("doctor_case_assigned", {
+                    "message": "You have been assigned a new SOS case.",
+                    "patient_id": patient_id,
+                    "hospital_id": hospital_id,
+                    "case_details": case_details
+                }, to=doctor_socket["socket_id"]) 
+                print(f"✅ Assignment notification sent to doctor {doctor.id}")
+            else:
+                print(f"ℹ️ Doctor credential {doctor_credential_id} is not connected; skipped realtime notify")
+        except Exception as e:
+            print(f"❌ Error notifying doctor: {e}")
+
+        try:
+            # Resolve ambulance socket across possible key types (int/str)
+            ambulance_candidate_keys = []
+            ambulance_candidate_keys.append(ambulance_credential_id)
+            try:
+                ambulance_candidate_keys.append(str(ambulance_credential_id))
+            except Exception:
+                pass
+            try:
+                ambulance_candidate_keys.append(int(ambulance_credential_id))
+            except Exception:
+                pass
+
+            ambulance_socket = None
+            for key in ambulance_candidate_keys:
+                socket_data = connected_users.get(key)
+                if socket_data:
+                    ambulance_socket = socket_data
+                    break
+
+            if ambulance_socket and ambulance_socket.get("role") == "ambulance":
+                await sio.emit("ambulance_case_assigned", {
+                    "message": "You have been assigned a new SOS case.",
+                    "patient_id": patient_id,
+                    "hospital_id": hospital_id,
+                    "case_details": case_details
+                }, to=ambulance_socket["socket_id"]) 
+                print(f"✅ Assignment notification sent to ambulance {ambulance.id}")
+            else:
+                print(f"ℹ️ Ambulance credential {ambulance_credential_id} is not connected; skipped realtime notify")
+        except Exception as e:
+            print(f"❌ Error notifying ambulance: {e}")
+        
+        # Update log with success
+        if log_id:
+            response_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            update_socket_log(
+                db, log_id, 
+                status="success", 
+                response_time_ms=response_time,
+                response_data=assignment_data
+            )
+        
+        # Send success response to hospital
+        await sio.emit("assignment_success", {
+            "message": "Doctor and ambulance assigned successfully",
+            "patient_id": patient_id,
+            "doctor_id": doctor_id,
+            "doctor_credential_id": doctor_credential_id,
+            "ambulance_id": ambulance_id,
+            "ambulance_credential_id": ambulance_credential_id
+        }, to=sid)
+        
+    except Exception as e:
+        print(f"❌ Error assigning doctor and ambulance: {e}")
+        
+        # Update log with error
+        if log_id:
+            try:
+                db = next(get_db())
+                update_socket_log(db, log_id, status="failed", error_message=str(e))
+            except Exception as log_error:
+                print(f"❌ Error updating log: {log_error}")
+        
+        await sio.emit("assignment_error", {"error": str(e)}, to=sid)
