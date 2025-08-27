@@ -13,6 +13,13 @@ class MedicalRecordBase(BaseModel):
     other_issues: Optional[str] = None
     emergency_contact_name: Optional[str] = None
     emergency_contact_number: Optional[str] = None
+    occupation: Optional[str] = None
+    addiction: Optional[str] = None
+    smoking: Optional[bool] = None
+    drinking: Optional[bool] = None
+    address: Optional[str] = None
+    sugar: Optional[bool] = None
+  
 
 
 class MedicalRecordCreate(MedicalRecordBase):
