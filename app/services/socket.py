@@ -104,6 +104,65 @@ def find_nearest_hospital(patient_lat: float, patient_lon: float, db: Session) -
         print(f"Error finding nearest hospital: {e}")
         return None
 
+def find_nearest_connected_hospital(patient_lat: float, patient_lon: float, db: Session) -> Optional[Dict]:
+    """
+    Find the nearest hospital that is currently socket-connected (role == 'hospital').
+    """
+    try:
+        hospitals = get_all_hospitals(db)
+
+        if not hospitals:
+            return None
+
+        hospitals_with_distance: List[Dict] = []
+        for hospital in hospitals:
+            if hospital.latitude is None or hospital.longitude is None:
+                continue
+
+            connected_key = str(hospital.credential_id) if hospital.credential_id is not None else None
+            if not connected_key:
+                continue
+
+            # Handle both string and legacy int keys gracefully
+            user_data = connected_users.get(connected_key)
+            if not user_data:
+                try:
+                    legacy_key = int(connected_key)
+                except Exception:
+                    legacy_key = None
+                if legacy_key is not None:
+                    user_data = connected_users.get(str(legacy_key)) or connected_users.get(legacy_key)  # in case old int key exists
+            if not user_data or user_data.get("role") != "hospital":
+                continue
+
+            distance = calculate_distance(
+                patient_lat,
+                patient_lon,
+                float(hospital.latitude),
+                float(hospital.longitude),
+            )
+
+            hospitals_with_distance.append({
+                'id': hospital.id,
+                'credential_id': hospital.credential_id,
+                'name': hospital.name,
+                'address': hospital.address,
+                'latitude': hospital.latitude,
+                'longitude': hospital.longitude,
+                'phone': hospital.phone,
+                'distance': distance,
+                'socket_id': user_data.get('socket_id'),
+            })
+
+        if not hospitals_with_distance:
+            return None
+
+        return min(hospitals_with_distance, key=lambda x: x['distance'])
+
+    except Exception as e:
+        print(f"Error finding nearest connected hospital: {e}")
+        return None
+
 @sio.event
 async def connect(sid, environ):
     try:
@@ -140,11 +199,12 @@ async def connect(sid, environ):
         print(f"✅ Client connected: {sid} with token {token} and role {role} and user_id {user_id}")
         
         if user_id and role:
-            connected_users[user_id] = {
+            user_id_str = str(user_id)
+            connected_users[user_id_str] = {
                 "socket_id": sid,
                 "role": role
             }
-            print(f"✅ User {user_id} ({role}) connected with socket {sid}")
+            print(f"✅ User {user_id_str} ({role}) connected with socket {sid}")
             print(f"✅ Connected users: {connected_users}")
             
             # Log connection event
@@ -296,16 +356,16 @@ async def ambulance_request(sid, data):
                     patient_lon = 77.5946  # Default longitude
                     print(f"⚠️ Using default coordinates for patient: {patient_lat}, {patient_lon}")
             
-            # Find nearest hospital
-            nearest_hospital = find_nearest_hospital(patient_lat, patient_lon, db)
+            # Find nearest connected hospital
+            nearest_hospital = find_nearest_connected_hospital(float(patient_lat), float(patient_lon), db)
             
             if not nearest_hospital:
-                print("❌ No hospitals found")
-                await sio.emit("ambulance_request_error", {"error": "No hospitals available"}, to=sid)
+                print("❌ No connected hospitals found")
+                await sio.emit("ambulance_request_error", {"error": "No connected hospitals available"}, to=sid)
                 
                 # Update log with error
                 if log_id:
-                    update_socket_log(db, log_id, status="failed", error_message="No hospitals available")
+                    update_socket_log(db, log_id, status="failed", error_message="No connected hospitals available")
                 return
             
             print(f"🏥 Nearest hospital: {nearest_hospital['name']} ({nearest_hospital['distance']:.2f} km)")
@@ -313,40 +373,19 @@ async def ambulance_request(sid, data):
             # Add this debug code temporarily
             print(f"🔍 DEBUG: nearest_hospital data: {nearest_hospital}")
             print(f"🔍 DEBUG: connected_users: {connected_users}")
-
-            # Check if hospital is connected
-            hospital_user_id = nearest_hospital['credential_id']
-            print(f"🔍 DEBUG: hospital_user_id type: {type(hospital_user_id)}, value: {hospital_user_id}")
-            print(f"🔍 DEBUG: connected_users keys: {list(connected_users.keys())}")
-            print(f"🔍 DEBUG: hospital_user_id in connected_users: {hospital_user_id in connected_users}")
-            if hospital_user_id in connected_users:
-                print(f"🔍 DEBUG: Hospital found in connected_users!")
-                hospital_socket_data = connected_users[hospital_user_id]
-                print(f"🔍 DEBUG: hospital_socket_data: {hospital_socket_data}")
-                print(f"🔍 DEBUG: hospital_socket_data['role']: {hospital_socket_data['role']}")
-                print(f"🔍 DEBUG: Role comparison: '{hospital_socket_data['role']}' == 'hospital': {hospital_socket_data['role'] == 'hospital'}")
-                
-                if hospital_socket_data["role"] != "hospital":
-                    print(f"⚠️ User {hospital_user_id} is not a hospital")
-                    await sio.emit("ambulance_request_error", {"error": "Hospital not available"}, to=sid)
-                    
-                    # Update log with error
-                    if log_id:
-                        update_socket_log(db, log_id, status="failed", error_message="User is not a hospital")
-                    return
-                else:
-                    print(f"✅ Hospital role check passed!")
-            else:
-                print(f"⚠️ Hospital {nearest_hospital['name']} is not connected")
-                await sio.emit("ambulance_request_error", {"error": "Nearest hospital is not available"}, to=sid)
-                
-                # Update log with error
+            # We already filtered to connected hospitals; get socket data safely
+            hospital_user_id_str = str(nearest_hospital['credential_id'])
+            hospital_socket_data = connected_users.get(hospital_user_id_str)
+            if not hospital_socket_data:
+                print(f"⚠️ Connected hospital disappeared from map: {nearest_hospital['name']}")
+                await sio.emit("ambulance_request_error", {"error": "Hospital connection lost"}, to=sid)
                 if log_id:
-                    update_socket_log(db, log_id, status="failed", error_message="Nearest hospital not connected")
+                    update_socket_log(db, log_id, status="failed", error_message="Hospital connection lost")
                 return
             
             # Prepare ambulance alert data
             ambulance_alert_data = {
+                "socket_log_id": log_id,
                 "patient_id": patient_id,
                 "patient_name": patient.full_name,
                 "patient_phone": patient.phone_number,
@@ -503,6 +542,92 @@ async def hospital_response(sid, data):
                 update_socket_log(db, log_id, status="failed", error_message=str(e))
             except Exception as log_error:
                 print(f"❌ Error updating log: {log_error}")
+
+@sio.event
+async def assign_doctor_and_ambulance(sid, data):
+    """
+    Hospital assigns a doctor and an ambulance to a patient's SOS.
+    data: {
+      patient_id: str,
+      hospital_id: int,
+      doctor_id: int,
+      doctor_credential_id?: int,
+      ambulance_id: int,
+      ambulance_credential_id?: int,
+      case_details: Dict
+    }
+    """
+    try:
+        print(f"🧑‍⚕️🚑 Assignment request from {sid}: {data}")
+        patient_id = data.get("patient_id")
+        hospital_id = data.get("hospital_id")
+        doctor_id = data.get("doctor_id")
+        doctor_cred = data.get("doctor_credential_id")
+        ambulance_id = data.get("ambulance_id")
+        ambulance_cred = data.get("ambulance_credential_id")
+        case_details = data.get("case_details", {})
+
+        if not (patient_id and hospital_id and doctor_id and ambulance_id):
+            await sio.emit("assignment_error", {"error": "Missing required fields"}, to=sid)
+            return
+
+        # Build assignment payload
+        assignment = {
+            "patient_id": patient_id,
+            "hospital_id": hospital_id,
+            "doctor_id": doctor_id,
+            "ambulance_id": ambulance_id,
+            "case_details": case_details,
+            "status": "active",
+        }
+
+        # Notify doctor if connected
+        if doctor_cred is not None:
+            doctor_key = str(doctor_cred)
+            doctor_socket = connected_users.get(doctor_key)
+            if doctor_socket and doctor_socket.get("role") == "doctor":
+                await sio.emit("DOCTOR_ASSIGNMENT", assignment, to=doctor_socket["socket_id"])
+                print(f"✅ Notified doctor credential {doctor_key} of assignment")
+            else:
+                print(f"⚠️ Doctor credential {doctor_key} not connected or wrong role")
+
+        # Notify ambulance if connected
+        if ambulance_cred is not None:
+            ambulance_key = str(ambulance_cred)
+            ambulance_socket = connected_users.get(ambulance_key)
+            if ambulance_socket and ambulance_socket.get("role") == "ambulance":
+                await sio.emit("AMBULANCE_ASSIGNMENT", assignment, to=ambulance_socket["socket_id"])
+                print(f"✅ Notified ambulance credential {ambulance_key} of assignment")
+            else:
+                print(f"⚠️ Ambulance credential {ambulance_key} not connected or wrong role")
+
+        # Acknowledge to hospital
+        await sio.emit("assignment_success", assignment, to=sid)
+
+        # Log the assignment
+        try:
+            db = next(get_db())
+            create_socket_log(
+                db=db,
+                event_type="assignment",
+                socket_id=sid,
+                user_id=str(hospital_id),
+                user_role="hospital",
+                event_data=data,
+                response_data=assignment,
+                status="success"
+            )
+        except Exception as e:
+            print(f"❌ Error logging assignment: {e}")
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+
+    except Exception as e:
+        print(f"❌ Error handling assignment: {e}")
+        await sio.emit("assignment_error", {"error": "Internal server error"}, to=sid)
 
 @sio.event
 async def my_event(sid, data):
