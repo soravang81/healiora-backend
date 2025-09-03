@@ -20,3 +20,4 @@ class Doctor(Base):
 
     credential = relationship("Credential", back_populates="doctor")
     hospital = relationship("Hospital", back_populates="doctors")
+    assignments = relationship("PatientAssignment", back_populates="doctor")

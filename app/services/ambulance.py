@@ -113,14 +113,34 @@ def create_ambulance(
 
     return ambulance
 
-def get_ambulance_by_id(db: Session, ambulance_id: int):
-    return db.query(Ambulance).filter(Ambulance.id == ambulance_id).first()
+def get_ambulance_by_id(db: Session, ambulance_id: int) -> Ambulance:
+    """
+    Get ambulance by ID
+    """
+    ambulance = db.query(Ambulance).filter(Ambulance.id == ambulance_id).first()
+    if not ambulance:
+        raise HTTPException(
+            status_code=404,
+            detail="Ambulance not found with the given ID.",
+        )
+    return ambulance
 
 def get_ambulance_by_email(db: Session, email: str):
     return db.query(Ambulance).filter(Ambulance.driver_email == email).first()
 
-def get_ambulance_by_credential_id(db: Session, credential_id: int):
-    return db.query(Ambulance).filter(Ambulance.credential_id == credential_id).first()
+def get_ambulance_by_credential_id(
+    db: Session, credential_id: int
+) -> Ambulance:
+    """
+    Get ambulance by credential ID
+    """
+    ambulance = db.query(Ambulance).filter(Ambulance.credential_id == credential_id).first()
+    if not ambulance:
+        raise HTTPException(
+            status_code=404,
+            detail="Ambulance not found.",
+        )
+    return ambulance
 
 def get_ambulances_by_hospital(db: Session, hospital_id: int):
     return db.query(Ambulance).filter(Ambulance.hospital_id == hospital_id).all()

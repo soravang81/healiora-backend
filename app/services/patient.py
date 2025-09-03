@@ -82,6 +82,19 @@ def get_patient_by_credential_id(
     return patient
 
 
+def get_patient_by_id(db: Session, patient_id: int) -> Patient:
+    """
+    Get patient by ID
+    """
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient not found with the given ID.",
+        )
+    return patient
+
+
 
 def update_patient_by_user_id(db: Session, user_id: int, data: PatientUpdate, credentials_id: int) -> Patient:
     patient = db.query(Patient).filter(Patient.credential_id == credentials_id).first()

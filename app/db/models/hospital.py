@@ -32,4 +32,5 @@ class Hospital(Base):
     ambulances = relationship("Ambulance", back_populates="hospital")
     socket_logs = relationship("SocketLog", back_populates="hospital", foreign_keys="[SocketLog.hospital_id]")
     accepted_sos_requests = relationship("SocketLog", foreign_keys="[SocketLog.accepted_by_hospital_id]")
+    assignments = relationship("PatientAssignment", back_populates="hospital")
 

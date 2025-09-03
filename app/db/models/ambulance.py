@@ -20,3 +20,4 @@ class Ambulance(Base):
 
     credential = relationship("Credential", back_populates="ambulance")
     hospital = relationship("Hospital", back_populates="ambulances")
+    assignments = relationship("PatientAssignment", back_populates="ambulance")

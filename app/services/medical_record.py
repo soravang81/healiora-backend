@@ -84,3 +84,13 @@ def delete_patient_medical_record(db: Session, credential_id: int):
     db.delete(record)
     db.commit()
     return {"detail": "Medical record deleted successfully"}
+
+
+def get_medical_record_by_patient_id(db: Session, patient_id: int):
+    """
+    Get medical record by patient ID
+    """
+    record = db.query(MedicalRecord).filter(MedicalRecord.patient_id == patient_id).first()
+    if not record:
+        return None
+    return record

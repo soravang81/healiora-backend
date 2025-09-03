@@ -21,4 +21,5 @@ class Patient(Base):
 
     credential = relationship("Credential", back_populates="patient")
     medical_record = relationship("MedicalRecord", back_populates="patient", uselist=False)
+    assignments = relationship("PatientAssignment", back_populates="patient")
     # user = relationship("User" , back_populates="patient")

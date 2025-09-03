@@ -12,6 +12,7 @@ from app.db.models.hospital import Hospital
 from fastapi import HTTPException
 import random
 import time
+from fastapi import status
 
 # In-memory storage for verification codes (in production, use Redis or database)
 verification_codes = {}
@@ -114,14 +115,34 @@ def create_doctor(
 
     return doctor
 
-def get_doctor_by_id(db: Session, doctor_id: int):
-    return db.query(Doctor).filter(Doctor.id == doctor_id).first()
+def get_doctor_by_id(db: Session, doctor_id: int) -> Doctor:
+    """
+    Get doctor by ID
+    """
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    if not doctor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doctor not found with the given ID.",
+        )
+    return doctor
 
 def get_doctor_by_email(db: Session, email: str):
     return db.query(Doctor).filter(Doctor.email == email).first()
 
-def get_doctor_by_credential_id(db: Session, credential_id: int):
-    return db.query(Doctor).filter(Doctor.credential_id == credential_id).first()
+def get_doctor_by_credential_id(
+    db: Session, credential_id: int
+) -> Doctor:
+    """
+    Get doctor by credential ID
+    """
+    doctor = db.query(Doctor).filter(Doctor.credential_id == credential_id).first()
+    if not doctor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doctor not found.",
+        )
+    return doctor
 
 def get_doctors_by_hospital(db: Session, hospital_id: int):
     return db.query(Doctor).filter(Doctor.hospital_id == hospital_id).all()

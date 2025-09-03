@@ -1,5 +1,5 @@
 # app/db/models/socket_log.py
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey, Boolean, BigInteger
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.base_class import Base
@@ -8,7 +8,7 @@ from app.db.base_class import Base
 class SocketLog(Base):
     __tablename__ = "socket_logs"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     
     # Event identification
     event_type = Column(String, nullable=False, index=True)  # e.g., 'ambulance_request', 'hospital_response', 'connect', 'disconnect'
@@ -55,6 +55,7 @@ class SocketLog(Base):
     # Relationships
     hospital = relationship("Hospital", back_populates="socket_logs", foreign_keys=[hospital_id])
     accepted_by_hospital = relationship("Hospital", foreign_keys=[accepted_by_hospital_id], overlaps="accepted_sos_requests")
+    assignments = relationship("PatientAssignment", back_populates="sos_request")
     
     def __repr__(self):
         return f"<SocketLog(id={self.id}, event_type='{self.event_type}', user_id='{self.user_id}', status='{self.status}')>" 

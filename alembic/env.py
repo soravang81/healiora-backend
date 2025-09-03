@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 # Import settings and models
 from app.core.config import settings
 from app.db.session import Base
-from app.db.models import patient, credential, medical_records, hospital, doctor, ambulance
+from app.db.models import patient, credential, medical_records, hospital, doctor, ambulance, socket_log, patient_assignment
 
 # Alembic Config object
 config = context.config
