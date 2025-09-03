@@ -16,6 +16,16 @@ router = APIRouter(
     tags=["ambulances"]
 )
 
+@router.get("/me", response_model=AmbulanceOut)
+def get_my_ambulance_profile(
+    db: Session = Depends(get_db),
+    current_user: Credential = Depends(get_current_user)
+):
+    ambulance = ambulance_service.get_ambulance_by_credential_id(db, int(current_user.id))
+    if not ambulance:
+        raise HTTPException(status_code=404, detail="Ambulance profile not found")
+    return ambulance
+
 @router.post("/", response_model=AmbulanceOut, status_code=status.HTTP_201_CREATED)
 def create_ambulance(
     ambulance_in: AmbulanceCreate,

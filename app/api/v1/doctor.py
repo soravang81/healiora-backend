@@ -18,6 +18,16 @@ router = APIRouter(
     tags=["doctors"]
 )
 
+@router.get("/me", response_model=DoctorOut)
+def get_my_doctor_profile(
+    db: Session = Depends(get_db),
+    current_user: Credential = Depends(get_current_user)
+):
+    doctor = doctor_service.get_doctor_by_credential_id(db, int(current_user.id))
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor profile not found")
+    return doctor
+
 @router.post("/", response_model=DoctorOut, status_code=status.HTTP_201_CREATED)
 def create_doctor_route(
     doctor_in: DoctorCreate,
