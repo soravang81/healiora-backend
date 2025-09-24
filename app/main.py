@@ -8,7 +8,8 @@ from app.api.v1 import (
     ambulance,
     socket_log,
     admin,
-    patient_assignment
+    patient_assignment,
+    user_settings
 )
 from fastapi.middleware.cors import CORSMiddleware
 import socketio
@@ -37,6 +38,7 @@ app.include_router(ambulance.router, prefix="/api/v1/ambulances", tags=["Ambulan
 app.include_router(socket_log.router, prefix="/api/v1/socket-logs", tags=["Socket Logs"])
 app.include_router(admin.router, prefix="/api/v1", tags=["Admin"])
 app.include_router(patient_assignment.router, prefix="/api/v1/patient-assignments", tags=["Patient Assignments"])
+app.include_router(user_settings.router, prefix="/api/v1/user-settings", tags=["User Settings"])
 
 @app.get("/")
 def read_root():

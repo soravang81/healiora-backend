@@ -7,3 +7,4 @@ from app.db.models.ambulance import Ambulance
 from app.db.models.medical_records import MedicalRecord
 from app.db.models.socket_log import SocketLog
 from app.db.models.patient_assignment import PatientAssignment
+from app.db.models.user_settings import UserSettings

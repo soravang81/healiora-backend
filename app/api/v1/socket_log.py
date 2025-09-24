@@ -1,12 +1,14 @@
 # app/api/v1/socket_log.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
+from sqlalchemy import and_, func
 
 from app.db.session import get_db
 from app.utils.deps import get_current_user
 from app.db.models.credential import Credential
+from app.db.models.socket_log import SocketLog
 from app.schemas.socket_log import (
     SocketLogOut, 
     SocketLogStatistics, 
@@ -30,7 +32,8 @@ from app.services.socket_log import (
     get_sos_requests_by_status,
     get_sos_statistics,
     get_sos_requests_by_hospital,
-    get_pending_sos_requests
+    get_pending_sos_requests,
+    get_hospital_sos_statistics
 )
 from app.services.ambulance import get_ambulances_by_hospital
 
@@ -359,6 +362,104 @@ def get_sos_dashboard_data(
         }
 
 
+def get_hospital_sos_statistics(
+    db: Session,
+    hospital_id: int,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None
+) -> Dict[str, Any]:
+    """
+    Get SOS-specific statistics for a specific hospital
+    """
+    if not start_date:
+        start_date = datetime.utcnow() - timedelta(days=30)
+    if not end_date:
+        end_date = datetime.utcnow()
+    
+    # Total SOS requests for this hospital
+    total_sos_requests = db.query(SocketLog).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date
+        )
+    ).count()
+    
+    # SOS requests by status for this hospital
+    sos_by_status = db.query(
+        SocketLog.sos_status,
+        func.count(SocketLog.id).label('count')
+    ).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date,
+            SocketLog.sos_status.isnot(None)
+        )
+    ).group_by(SocketLog.sos_status).all()
+    
+    # Accepted SOS requests for this hospital
+    accepted_sos = db.query(SocketLog).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.sos_status == "accepted",
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date
+        )
+    ).count()
+    
+    # Rejected SOS requests for this hospital
+    rejected_sos = db.query(SocketLog).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.sos_status == "rejected",
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date
+        )
+    ).count()
+    
+    # Expired SOS requests for this hospital
+    expired_sos = db.query(SocketLog).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.sos_status == "expired",
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date
+        )
+    ).count()
+    
+    # Pending SOS requests for this hospital
+    pending_sos = db.query(SocketLog).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.sos_status == "pending",
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date
+        )
+    ).count()
+    
+    return {
+        "total_sos_requests": total_sos_requests,
+        "sos_by_status": dict(sos_by_status),
+        "accepted_sos": accepted_sos,
+        "rejected_sos": rejected_sos,
+        "expired_sos": expired_sos,
+        "pending_sos": pending_sos,
+        "acceptance_rate": (accepted_sos / total_sos_requests * 100) if total_sos_requests > 0 else 0,
+        "rejection_rate": (rejected_sos / total_sos_requests * 100) if total_sos_requests > 0 else 0,
+            "time_range": {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat()
+            }
+        }
+
+
 @router.get("/comprehensive-dashboard")
 def get_comprehensive_dashboard_data(
     db: Session = Depends(get_db),
@@ -375,9 +476,6 @@ def get_comprehensive_dashboard_data(
     start_date = end_date - timedelta(days=30)
     
     try:
-        # Get SOS statistics
-        sos_stats = get_sos_statistics(db, start_date, end_date)
-        
         # Get recent activity (last 24 hours)
         activity_end_date = datetime.utcnow()
         activity_start_date = activity_end_date - timedelta(hours=24)
@@ -390,6 +488,7 @@ def get_comprehensive_dashboard_data(
         
         if current_user.role == "admin":
             # Admin gets global data
+            sos_stats = get_sos_statistics(db, start_date, end_date)
             pending_requests = get_pending_sos_requests(db, limit=20)
             ambulance_requests = get_ambulance_requests(db, limit=20, offset=0)
             hospital_responses = get_hospital_responses(db, limit=20, offset=0)
@@ -416,6 +515,9 @@ def get_comprehensive_dashboard_data(
             
             if not user_hospital_id:
                 raise HTTPException(status_code=404, detail="Hospital not found for current user")
+            
+            # Get hospital-specific SOS statistics
+            hospital_sos_stats = get_hospital_sos_statistics(db, user_hospital_id, start_date, end_date)
             
             # Get hospital-specific data
             hospital_pending_requests = get_pending_sos_requests(db, user_hospital_id, limit=20)
@@ -454,7 +556,7 @@ def get_comprehensive_dashboard_data(
                     "address": current_user.hospital.address if hasattr(current_user, 'hospital') and current_user.hospital else None,
                     "phone": current_user.hospital.phone if hasattr(current_user, 'hospital') and current_user.hospital else None
                 },
-                "sos_statistics": sos_stats,
+                "sos_statistics": hospital_sos_stats,  # Now using hospital-specific stats
                 "status_counts": status_counts,
                 "pending_sos_requests": hospital_pending_requests,
                 "recent_sos_requests": hospital_sos_requests[:10],

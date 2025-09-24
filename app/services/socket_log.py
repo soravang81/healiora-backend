@@ -555,6 +555,107 @@ def get_sos_statistics(
     }
 
 
+def get_hospital_sos_statistics(
+    db: Session,
+    hospital_id: int,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None
+) -> Dict[str, Any]:
+    """
+    Get SOS-specific statistics for a specific hospital
+    """
+    if not start_date:
+        start_date = datetime.utcnow() - timedelta(days=30)
+    if not end_date:
+        end_date = datetime.utcnow()
+    
+    # Total SOS requests for this hospital
+    total_sos_requests = db.query(SocketLog).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date
+        )
+    ).count()
+    
+    # SOS requests by status for this hospital
+    sos_by_status = db.query(
+        SocketLog.sos_status,
+        func.count(SocketLog.id).label('count')
+    ).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date,
+            SocketLog.sos_status.isnot(None)
+        )
+    ).group_by(SocketLog.sos_status).all()
+    
+    # Accepted SOS requests for this hospital
+    accepted_sos = db.query(SocketLog).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.sos_status == "accepted",
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date
+        )
+    ).count()
+    
+    # Rejected SOS requests for this hospital
+    rejected_sos = db.query(SocketLog).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.sos_status == "rejected",
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date
+        )
+    ).count()
+    
+    # Expired SOS requests for this hospital
+    expired_sos = db.query(SocketLog).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.sos_status == "expired",
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date
+        )
+    ).count()
+    
+    # Pending SOS requests for this hospital
+    pending_sos = db.query(SocketLog).filter(
+        and_(
+            SocketLog.event_type == "ambulance_request",
+            SocketLog.hospital_id == hospital_id,
+            SocketLog.sos_status == "pending",
+            SocketLog.created_at >= start_date,
+            SocketLog.created_at <= end_date
+        )
+    ).count()
+    
+    # Calculate acceptance rate based on processed requests (accepted + rejected + expired)
+    processed_requests = accepted_sos + rejected_sos + expired_sos
+    
+    return {
+        "total_sos_requests": total_sos_requests,
+        "sos_by_status": dict(sos_by_status),
+        "accepted_sos": accepted_sos,
+        "rejected_sos": rejected_sos,
+        "expired_sos": expired_sos,
+        "pending_sos": pending_sos,
+        "acceptance_rate": (accepted_sos / processed_requests * 100) if processed_requests > 0 else 0,
+        "rejection_rate": (rejected_sos / processed_requests * 100) if processed_requests > 0 else 0,
+        "time_range": {
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat()
+        }
+    }
+
+
 def get_sos_requests_by_hospital(
     db: Session,
     hospital_id: int,

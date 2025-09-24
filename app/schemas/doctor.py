@@ -21,6 +21,14 @@ class DoctorOut(DoctorBase):
     class Config:
         orm_mode = True
 
+class DoctorUpdate(BaseModel):
+    name: Optional[str] = None
+    phone_number: Optional[str] = None
+    address: Optional[str] = None
+    education: Optional[str] = None
+    specialization: Optional[str] = None
+    years_of_experience: Optional[float] = None
+
 class DoctorLogin(BaseModel):
     email: EmailStr
     password: str

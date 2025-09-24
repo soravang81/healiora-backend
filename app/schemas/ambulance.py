@@ -19,6 +19,13 @@ class AmbulanceOut(AmbulanceBase):
     class Config:
         orm_mode = True
 
+class AmbulanceUpdate(BaseModel):
+    ambulance_number: Optional[str] = None
+    driver_name: Optional[str] = None
+    driver_phone: Optional[str] = None
+    driver_email: Optional[EmailStr] = None
+    vehicle_type: Optional[str] = None
+
 class AmbulanceLogin(BaseModel):
     email: EmailStr
     password: str

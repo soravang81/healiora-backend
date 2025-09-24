@@ -10,6 +10,7 @@ import string
 from fastapi import HTTPException
 import random
 import time
+from app.db.models.patient_assignment import PatientAssignment
 
 # In-memory storage for verification codes (in production, use Redis or database)
 verification_codes = {}
@@ -153,6 +154,27 @@ def authenticate_ambulance(db: Session, email: str, password: str):
     if not cred or not verify_password(password, cred.password):
         return None
     return cred 
+
+def is_ambulance_available(db: Session, ambulance_id: int) -> dict:
+    """Compute ambulance availability from active assignments."""
+    active = (
+        db.query(PatientAssignment)
+        .filter(PatientAssignment.ambulance_id == ambulance_id)
+        .filter(PatientAssignment.status.in_(["active"]))
+        .filter(PatientAssignment.case_status.in_(["open", "in_progress"]))
+        .filter(PatientAssignment.ambulance_assignment_status.in_(["accepted", "en_route"]))
+        .order_by(PatientAssignment.created_at.desc())
+        .first()
+    )
+    return {"available": active is None, "active_assignment_id": active.id if active else None}
+
+def get_hospital_ambulance_statuses(db: Session, hospital_id: int) -> list:
+    ambulances = get_ambulances_by_hospital(db, hospital_id)
+    results = []
+    for amb in ambulances:
+        s = is_ambulance_available(db, amb.id)
+        results.append({"ambulance_id": amb.id, **s})
+    return results
 
 def request_password_change(db: Session, email: str, current_password: str, new_password: str):
     """Request password change for ambulance user."""

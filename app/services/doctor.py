@@ -13,6 +13,7 @@ from fastapi import HTTPException
 import random
 import time
 from fastapi import status
+from app.db.models.patient_assignment import PatientAssignment
 
 # In-memory storage for verification codes (in production, use Redis or database)
 verification_codes = {}
@@ -149,6 +150,27 @@ def get_doctors_by_hospital(db: Session, hospital_id: int):
 
 def get_all_doctors(db: Session):
     return db.query(Doctor).all()
+
+def is_doctor_available(db: Session, doctor_id: int) -> dict:
+    """Compute doctor availability from active assignments."""
+    active = (
+        db.query(PatientAssignment)
+        .filter(PatientAssignment.doctor_id == doctor_id)
+        .filter(PatientAssignment.status.in_(["active"]))
+        .filter(PatientAssignment.case_status.in_(["open", "in_progress"]))
+        .filter(PatientAssignment.doctor_assignment_status.in_(["accepted"]))
+        .order_by(PatientAssignment.created_at.desc())
+        .first()
+    )
+    return {"available": active is None, "active_assignment_id": active.id if active else None}
+
+def get_hospital_doctor_statuses(db: Session, hospital_id: int) -> list:
+    doctors = get_doctors_by_hospital(db, hospital_id)
+    results = []
+    for doc in doctors:
+        s = is_doctor_available(db, doc.id)
+        results.append({"doctor_id": doc.id, **s})
+    return results
 
 def request_password_change(db: Session, email: str, current_password: str, new_password: str):
     """Request password change for doctor user."""

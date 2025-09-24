@@ -92,7 +92,7 @@ def fetch_hospital_by_id(hospital_id: int, db: Session = Depends(get_db)):
 
 
 # ✅ Admin: Update hospital
-@router.put("/{hospital_id}", response_model=HospitalOut, dependencies=[Depends(require_admin)])
+@router.put("/{hospital_id}", response_model=HospitalOut)
 def update_hospital_info(
     hospital_id: int,
     updates: HospitalUpdate,

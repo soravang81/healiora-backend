@@ -21,3 +21,4 @@ class Credential(Base):
     hospital = relationship("Hospital", back_populates="user", uselist=False)
     doctor = relationship("Doctor", back_populates="credential", uselist=False)
     ambulance = relationship("Ambulance", back_populates="credential", uselist=False)
+    user_settings = relationship("UserSettings", back_populates="credential", uselist=False)

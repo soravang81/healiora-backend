@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.schemas.doctor import DoctorCreate, DoctorOut, DoctorLogin, PasswordChangeRequest, PasswordChangeVerify
+from app.schemas.doctor import DoctorCreate, DoctorOut, DoctorLogin, PasswordChangeRequest, PasswordChangeVerify, DoctorUpdate
 from app.db.session import get_db
 from app.services import doctor as doctor_service
 from app.schemas.token import Token
@@ -26,6 +26,22 @@ def get_my_doctor_profile(
     doctor = doctor_service.get_doctor_by_credential_id(db, int(current_user.id))
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor profile not found")
+    return doctor
+
+@router.put("/me", response_model=DoctorOut)
+def update_my_doctor_profile(
+    payload: DoctorUpdate,
+    db: Session = Depends(get_db),
+    current_user: Credential = Depends(get_current_user)
+):
+    doctor = doctor_service.get_doctor_by_credential_id(db, int(current_user.id))
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor profile not found")
+    update_data = payload.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(doctor, field, value)
+    db.commit()
+    db.refresh(doctor)
     return doctor
 
 @router.post("/", response_model=DoctorOut, status_code=status.HTTP_201_CREATED)
@@ -71,6 +87,14 @@ def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
 @router.get("/hospital/{hospital_id}", response_model=List[DoctorOut])
 def get_doctors_by_hospital(hospital_id: int, db: Session = Depends(get_db)):
     return doctor_service.get_doctors_by_hospital(db, hospital_id)
+
+@router.get("/{doctor_id}/status")
+def get_doctor_status(doctor_id: int, db: Session = Depends(get_db)):
+    return doctor_service.is_doctor_available(db, doctor_id)
+
+@router.get("/hospital/{hospital_id}/statuses")
+def get_hospital_doctor_statuses(hospital_id: int, db: Session = Depends(get_db)):
+    return {"statuses": doctor_service.get_hospital_doctor_statuses(db, hospital_id)}
 
 @router.post("/request-password-change")
 def request_password_change_route(
